@@ -17,18 +17,29 @@ enum class EYJJWobblerKind : uint8
 	Runner,		// 날쌘돌이: 작고 빠르고 가볍다 (멀리 날아간다)
 	Brute,		// 뚱보: 크고 무겁고 느리다
 	Boss,		// 대장: 거대
+	Tiny,		// 꼬마: 아주 작고 가볍다 (새총 탄알 1순위)
 	Guard,		// 아군 몽둥이 병사
 };
 
+/**
+ * 몬스터 수치. 레벨 디자인의 중심은 "무게"다.
+ *  - 맞고 날아가는 거리는 무게에 반비례 (졸병 60kg 기준)
+ *  - 새총은 강화 단계별로 들 수 있는 무게가 정해져 있다
+ *  - 웨이브는 총 무게 예산으로 짠다
+ */
 struct FYJJWobblerSpec
 {
+	const TCHAR* Name = TEXT("");
 	float Scale = 1.f;
 	float Health = 30.f;
 	float Speed = 200.f;
 	int32 Bounty = 8;
-	int32 Bite = 1;		// 푸딩에 닿았을 때 깎는 체력
-	float Heft = 1.f;	// 클수록 덜 날아간다
+	int32 Bite = 1;			// 푸딩에 닿았을 때 깎는 체력
+	float WeightKg = 60.f;
 	uint32 ColorHex = 0xE5484D;
+
+	/** 졸병(60kg) 대비 무게. 맞을 때 속도 변화를 이걸로 나눈다 */
+	float Heft() const { return WeightKg / 60.f; }
 };
 
 /**
@@ -46,8 +57,8 @@ public:
 
 	static const FYJJWobblerSpec& Spec(EYJJWobblerKind Kind);
 
-	/** 스폰 직후 한 번. Lateral은 길 가운데에서 벗어나 걷는 거리(적), Post는 지키는 자리(병사) */
-	void Setup(EYJJWobblerKind InKind, float InLateral, const FVector& InPost);
+	/** 스폰 직후 한 번. Lateral은 길 가운데에서 벗어나 걷는 거리(적), Post는 지키는 자리(병사), Level은 병사 강화 단계 */
+	void Setup(EYJJWobblerKind InKind, float InLateral, const FVector& InPost, int32 InLevel = 1);
 
 	virtual void Tick(float DeltaTime) override;
 
@@ -58,6 +69,16 @@ public:
 	void Push(const FVector& Acceleration);
 
 	void TakeHit(float Damage);
+
+	/** 새총에 붙잡힘: 버둥거리며 Target 쪽으로 끌려간다 (매 프레임 갱신) */
+	void Hold(const FVector& Target);
+	/** 붙잡힌 채로 놓아준다 (새총이 사라졌을 때) */
+	void Release();
+	/** 탄알이 되어 날아간다. 날아가는 동안 부딪힌 적을 볼링핀처럼 쓰러뜨린다 */
+	void Fling(const FVector& Velocity, float Power);
+	bool IsHeld() const { return bHeld; }
+	bool IsProjectile() const { return ProjectileTime > 0.f; }
+	float GetWeight() const { return Spec(Kind).WeightKg; }
 
 	bool IsEnemy() const { return Kind != EYJJWobblerKind::Guard; }
 	bool IsAlive() const { return bReady && !bDead; }
@@ -83,6 +104,9 @@ private:
 	void Die(bool bDrowned);
 	void TickGuard(float DeltaTime, const FVector& Location, FVector& OutDesiredVelocity, FVector& OutFacing);
 	void TickEyes(float DeltaTime);
+	void TickHeld(float DeltaTime);
+	void TickProjectile(float DeltaTime, const FVector& Location, const FVector& Velocity);
+	void SetAllVelocity(const FVector& Velocity);
 
 	UPROPERTY()
 	TObjectPtr<UCapsuleComponent> Torso;
@@ -132,7 +156,16 @@ private:
 	FVector2D PupilOffset = FVector2D::ZeroVector;
 	FVector PupilBase[2];
 
+	// 새총
+	bool bHeld = false;
+	FVector HoldTarget = FVector::ZeroVector;
+	float HeldTime = 0.f;
+	float ProjectileTime = 0.f;
+	float ProjectilePower = 1.f;
+	TArray<TWeakObjectPtr<AYJJWobbler>> Bowled;
+
 	// 병사
+	int32 Level = 1;
 	bool bSpinning = false;
 	float SpinTime = 0.f;
 	float SpinCooldown = 0.f;

@@ -111,7 +111,7 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 	ApplyCamera();
 
 	// 단축키
-	const FKey TowerKeys[YJJTowerTypeCount] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four };
+	const FKey TowerKeys[YJJTowerTypeCount] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five };
 	for (int32 i = 0; i < YJJTowerTypeCount; ++i)
 	{
 		if (WasInputKeyJustPressed(TowerKeys[i]))
@@ -183,6 +183,11 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 			if (!Game->HasTower(HoverPad))
 			{
 				Game->Build(HoverPad, Selected);
+			}
+			else
+			{
+				// 지은 타워를 누르면 강화
+				Game->Upgrade(HoverPad);
 			}
 		}
 		else if (!bEnded)
