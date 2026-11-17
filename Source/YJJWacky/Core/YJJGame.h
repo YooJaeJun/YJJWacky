@@ -15,9 +15,11 @@ enum class EYJJTowerType : uint8
 	Cannon,		// 대포: 멀리서 포탄을 굴린다
 	Fan,		// 선풍기: 바람으로 밀어낸다
 	Guard,		// 몽둥이 병사: 길목에서 빙글빙글
+	Sling,		// 새총: 가벼운 놈을 붙잡아 탄알로 쏜다
 };
 
-inline constexpr int32 YJJTowerTypeCount = 4;
+inline constexpr int32 YJJTowerTypeCount = 5;
+inline constexpr int32 YJJMaxTowerLevel = 3;
 
 struct FYJJTowerInfo
 {
@@ -25,6 +27,25 @@ struct FYJJTowerInfo
 	const TCHAR* Blurb;
 	int32 Cost;
 	float Range;
+	/** 강화 단계별 한 줄 설명 (Lv2, Lv3) */
+	const TCHAR* Upgrade2;
+	const TCHAR* Upgrade3;
+};
+
+/** 웨이브 한 줄: 총 무게 예산 중 이 몬스터 몫, 나오는 구간(0~1) */
+struct FYJJWaveShare
+{
+	EYJJWobblerKind Kind;
+	float Share;
+	float From = 0.f;
+	float To = 1.f;
+};
+
+struct FYJJWaveDef
+{
+	int32 BudgetKg;
+	float Duration;
+	TArray<FYJJWaveShare> Shares;
 };
 
 enum class EYJJPhase : uint8
@@ -57,6 +78,13 @@ public:
 
 	static UYJJGame* Get(const UObject* WorldContext);
 	static const FYJJTowerInfo& TowerInfo(EYJJTowerType Type);
+	/** Level 단계에서 다음 단계로 가는 비용 */
+	static int32 UpgradeCost(EYJJTowerType Type, int32 Level);
+	/** 새총이 Level 단계에서 들 수 있는 최대 무게 */
+	static float SlingLimitKg(int32 Level);
+	static const FYJJWaveDef& WaveDef(int32 WaveNumber);
+	/** 웨이브 구성: 몬스터별 마릿수 (무게 예산 / 몬스터 무게) */
+	static TArray<TPair<EYJJWobblerKind, int32>> WaveCounts(int32 WaveNumber);
 
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
@@ -77,8 +105,11 @@ public:
 	// 타워
 	bool HasTower(int32 Pad) const;
 	EYJJTowerType GetPadTower(int32 Pad) const;
+	int32 GetPadLevel(int32 Pad) const;
+	AYJJTower* GetTower(int32 Pad) const { return HasTower(Pad) ? Towers[Pad].Get() : nullptr; }
 	int32 SellValue(int32 Pad) const;
 	bool Build(int32 Pad, EYJJTowerType Type);
+	bool Upgrade(int32 Pad);
 	bool Sell(int32 Pad);
 
 	void StartWave();
@@ -119,7 +150,7 @@ private:
 	};
 
 	AYJJArena* Arena();
-	void SpawnGuard(int32 Pad);
+	void SpawnGuard(int32 Pad, int32 Level);
 	void EndGame(bool bWon);
 
 	UPROPERTY()

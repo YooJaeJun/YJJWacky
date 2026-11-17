@@ -299,6 +299,36 @@ def sfx_fan_on():
     return normalize(fade_out(out, 0.3), 0.5)
 
 
+def sfx_upgrade():
+    """띠리리링: 올라가는 종소리 + 반짝"""
+    out = []
+    for i, n in enumerate(("C5", "E5", "G5", "C6", "E6")):
+        mix(out, bell(note(n), 0.5, 0.35, 0.16), i * 0.055)
+    mix(out, envelope(sweep(600, 2400, 0.3, 0.15, 1.5), 0.01, 0.2), 0.0)
+    return normalize(fade_out(reverb(out, 0.25, 0.7, 0.4), 0.2), 0.75)
+
+
+def sfx_sling():
+    """새총: 고무줄 퉁 + 바람 슝"""
+    out = envelope(sweep(260, 120, 0.25, 0.7, 0.6, 0.12, 40.0), 0.002, 0.08)
+    src = noise(0.45, 1.0)
+    count = len(src)
+    whoosh = bandpass(src, 400, lambda i: 900 + 3000 * (1.0 - i / count))
+    whoosh = [s * math.sin(math.pi * i / count) for i, s in enumerate(whoosh)]
+    mix(out, whoosh, 0.03, 0.6)
+    return normalize(fade_out(out, 0.08), 0.75)
+
+
+def sfx_grab():
+    """붙잡힌 놈: 끼약! (올라갔다 떨리며 내려오는 비명)"""
+    rise = sweep(500, 1250, 0.12, 0.5, 0.7, 0.03, 30.0)
+    fall = sweep(1250, 700, 0.3, 0.5, 1.0, 0.06, 24.0)
+    out = rise + fall
+    harm = [math.copysign(abs(s) ** 0.7, s) for s in out]
+    out = envelope([a * 0.6 + b * 0.4 for a, b in zip(out, harm)], 0.01, 0.25)
+    return normalize(fade_out(out, 0.08), 0.6)
+
+
 # ---------------------------------------------------------------- 배경음
 
 def bgm():
@@ -373,6 +403,9 @@ SOUNDS = {
     "SFX_Lose": sfx_lose,
     "SFX_Deny": sfx_deny,
     "SFX_FanOn": sfx_fan_on,
+    "SFX_Upgrade": sfx_upgrade,
+    "SFX_Sling": sfx_sling,
+    "SFX_Grab": sfx_grab,
     "BGM_Wacky": bgm,
 }
 

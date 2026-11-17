@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "Gameplay/YJJEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Physics/YJJWobbler.h"
 #include "World/YJJMap.h"
 
 namespace
@@ -15,6 +16,12 @@ namespace
 	constexpr float FanOnTime = 3.5f;
 	constexpr float FanPeriod = 5.5f;
 	constexpr float FanReach = 900.f;
+
+	/** 강화 단계별 값 (Lv1, Lv2, Lv3) */
+	float ByLevel(int32 Level, float L1, float L2, float L3)
+	{
+		return Level >= 3 ? L3 : (Level == 2 ? L2 : L1);
+	}
 
 	USceneComponent* Pivot(AActor* Owner, USceneComponent* Parent, const FVector& Location, const FRotator& Rotation = FRotator::ZeroRotator)
 	{
@@ -39,19 +46,90 @@ UStaticMeshComponent* AYJJTower::Part(USceneComponent* Parent, EYJJShape Shape, 
 	return YJJShapes::Add(this, Parent, Shape, Location, Size, YJJShapes::Solid(this, YJJShapes::Hex(ColorHex)), bCollide, Rotation);
 }
 
-void AYJJTower::Setup(EYJJTowerType InType, int32 InPad)
+void AYJJTower::Setup(EYJJTowerType InType, int32 InPad, int32 Cost)
 {
 	Type = InType;
 	Pad = InPad;
+	Invested = Cost;
 	switch (Type)
 	{
 	case EYJJTowerType::Punch: BuildPunch(); break;
 	case EYJJTowerType::Cannon: BuildCannon(); break;
 	case EYJJTowerType::Fan: BuildFan(); break;
 	case EYJJTowerType::Guard: BuildGuardPost(); break;
+	case EYJJTowerType::Sling: BuildSling(); break;
 	}
+	BuildLevelPips();
+	UpdateLevelLooks();
 	Cooldown = 0.4f;
 	bReady = true;
+}
+
+void AYJJTower::SetLevel(int32 NewLevel, int32 AddedCost)
+{
+	Level = FMath::Clamp(NewLevel, 1, YJJMaxTowerLevel);
+	Invested += AddedCost;
+	UpdateLevelLooks();
+}
+
+void AYJJTower::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	// 팔리면서 붙잡고 있던 놈을 놓아준다
+	if (AYJJWobbler* Held = Victim.Get())
+	{
+		Held->Release();
+	}
+	Super::EndPlay(EndPlayReason);
+}
+
+void AYJJTower::Beam(UStaticMeshComponent* Mesh, const FVector& A, const FVector& B, float Thickness)
+{
+	const FVector Mid = (A + B) * 0.5f;
+	const FVector Dir = B - A;
+	const float Length = FMath::Max(Dir.Size(), 1.f);
+	Mesh->SetWorldLocationAndRotation(Mid, FRotationMatrix::MakeFromZ(Dir / Length).Rotator());
+	Mesh->SetWorldScale3D(FVector(Thickness / 100.f, Thickness / 100.f, Length / 100.f));
+}
+
+void AYJJTower::BuildLevelPips()
+{
+	// 발판 뒤쪽 금색 구슬 = 강화 단계
+	for (int32 i = 0; i < YJJMaxTowerLevel; ++i)
+	{
+		Pips.Add(Part(RootComponent, EYJJShape::Sphere, FVector(-112.f, (i - 1) * 46.f, 22.f), FVector(34.f), 0xFFC83D));
+	}
+}
+
+void AYJJTower::UpdateLevelLooks()
+{
+	for (int32 i = 0; i < Pips.Num(); ++i)
+	{
+		Pips[i]->SetVisibility(i < Level);
+	}
+	switch (Type)
+	{
+	case EYJJTowerType::Punch:
+		Glove->SetRelativeScale3D(FVector(ByLevel(Level, 1.f, 1.3f, 1.6f)));
+		break;
+	case EYJJTowerType::Cannon:
+		Barrel->SetRelativeScale3D(FVector(ByLevel(Level, 1.f, 1.15f, 1.3f)));
+		break;
+	case EYJJTowerType::Fan:
+	{
+		Rotor->SetRelativeScale3D(FVector(ByLevel(Level, 1.f, 1.15f, 1.3f)));
+		UMaterialInterface* Blade = YJJShapes::Solid(this, YJJShapes::Hex(Level >= 3 ? 0xF87171 : (Level == 2 ? 0x93C5FD : 0xF8FAFC)));
+		for (UStaticMeshComponent* Mesh : Blades)
+		{
+			Mesh->SetMaterial(0, Blade);
+		}
+		break;
+	}
+	case EYJJTowerType::Sling:
+		Pouch->SetWorldScale3D(FVector(0.5f, 0.5f, 0.3f) * ByLevel(Level, 1.f, 1.2f, 1.45f));
+		break;
+	default:
+		break;
+	}
 }
 
 void AYJJTower::Tick(float DeltaTime)
@@ -66,6 +144,7 @@ void AYJJTower::Tick(float DeltaTime)
 	case EYJJTowerType::Punch: TickPunch(DeltaTime); break;
 	case EYJJTowerType::Cannon: TickCannon(DeltaTime); break;
 	case EYJJTowerType::Fan: TickFan(DeltaTime); break;
+	case EYJJTowerType::Sling: TickSling(DeltaTime); break;
 	default: break;
 	}
 }
@@ -154,14 +233,16 @@ void AYJJTower::TickPunch(float DeltaTime)
 					continue;
 				}
 				const FVector Local = Transform.InverseTransformPosition(Enemy->GetBodyLocation());
-				if (Local.X > 90.f && Local.X < 690.f && FMath::Abs(Local.Y) < 150.f + 35.f * Enemy->GetScale() && FMath::Abs(Local.Z) < 420.f)
+				if (Local.X > 90.f && Local.X < 690.f && FMath::Abs(Local.Y) < ByLevel(Level, 150.f, 180.f, 210.f) + 35.f * Enemy->GetScale() && FMath::Abs(Local.Z) < 420.f)
 				{
-					Enemy->Knock(Forward * 1350.f + FVector(0, 0, 680.f) + Right * FMath::FRandRange(-160.f, 160.f), 2.2f, 12.f);
+					const float Power = ByLevel(Level, 1.f, 1.35f, 1.75f);
+					Enemy->Knock((Forward * 1350.f + FVector(0, 0, 680.f) + Right * FMath::FRandRange(-160.f, 160.f)) * Power, 2.2f, 12.f * Power);
 					AYJJEffects::Burst(this, Enemy->GetBodyLocation(), YJJShapes::Hex(0xFFE066), 5, 480.f, 24.f, 0.4f, 700.f, true, 0.5f);
 					HitCount++;
 				}
 			}
-			YJJAudio::Play(this, EYJJSound::Punch, GetActorLocation(), HitCount > 0 ? 1.f : 0.5f, FMath::FRandRange(0.92f, 1.08f));
+			YJJAudio::Play(this, EYJJSound::Punch, GetActorLocation(), HitCount > 0 ? 1.f : 0.5f, FMath::FRandRange(0.92f, 1.08f) / ByLevel(Level, 1.f, 1.08f, 1.16f));
+			Shots++;
 			State = 3;
 			StateTime = 0.f;
 		}
@@ -180,7 +261,7 @@ void AYJJTower::TickPunch(float DeltaTime)
 		if (T >= 1.f)
 		{
 			State = 0;
-			Cooldown = 1.4f;
+			Cooldown = ByLevel(Level, 1.4f, 1.1f, 0.75f);
 		}
 		break;
 	}
@@ -202,6 +283,23 @@ void AYJJTower::BuildCannon()
 	Part(Barrel, EYJJShape::Cylinder, FVector(55, 0, 0), FVector(82, 82, 200), 0x1F2937, FRotator(90, 0, 0));
 	Part(Barrel, EYJJShape::Cylinder, FVector(152, 0, 0), FVector(98, 98, 26), 0x111827, FRotator(90, 0, 0));
 	Part(Barrel, EYJJShape::Sphere, FVector(-45, 0, 0), FVector(88, 88, 88), 0x1F2937);
+}
+
+void AYJJTower::FireCannonBall(const FVector& Origin, const FVector& Aim)
+{
+	const float T = FMath::Clamp(FVector::Dist2D(Aim, Origin) / 1500.f, 0.75f, 1.7f);
+	const FVector To = Aim - Origin;
+	const FVector Launch(To.X / T, To.Y / T, To.Z / T + 0.5f * 980.f * T);
+	const FVector Muzzle = Origin + Launch.GetSafeNormal() * 190.f;
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	if (AYJJCannonBall* Shot = GetWorld()->SpawnActor<AYJJCannonBall>(AYJJCannonBall::StaticClass(), Muzzle, FRotator::ZeroRotator, Params))
+	{
+		Shot->Launch(Launch, ByLevel(Level, 1.f, 1.3f, 1.5f));
+	}
+	AYJJEffects::Burst(this, Muzzle, YJJShapes::Hex(0xF1F5F9), 9, 380.f, 70.f, 0.6f, -200.f, false, 0.2f);
+	AYJJEffects::Burst(this, Muzzle, YJJShapes::Hex(0xFFB020), 5, 520.f, 36.f, 0.25f, 0.f, false, 0.1f);
+	YJJAudio::Play(this, EYJJSound::Cannon, Muzzle, 0.9f, FMath::FRandRange(0.92f, 1.08f));
 }
 
 void AYJJTower::TickCannon(float DeltaTime)
@@ -247,18 +345,17 @@ void AYJJTower::TickCannon(float DeltaTime)
 
 		if (Cooldown <= 0.f)
 		{
-			Cooldown = 3.4f;
+			Cooldown = ByLevel(Level, 3.4f, 3.0f, 2.7f);
 			Recoil = 1.f;
-			const FVector Muzzle = Origin + Dir * 190.f;
-			FActorSpawnParameters Params;
-			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-			if (AYJJCannonBall* Shot = GetWorld()->SpawnActor<AYJJCannonBall>(AYJJCannonBall::StaticClass(), Muzzle, FRotator::ZeroRotator, Params))
+			Shots++;
+			FireCannonBall(Origin, Aim);
+			if (Level >= 3)
 			{
-				Shot->Launch(Launch);
+				// 세 발: 좌우로 벌려서
+				const FVector Side = FVector::CrossProduct(FVector::UpVector, (Aim - Origin).GetSafeNormal2D());
+				FireCannonBall(Origin, Aim + Side * 260.f);
+				FireCannonBall(Origin, Aim - Side * 260.f);
 			}
-			AYJJEffects::Burst(this, Muzzle, YJJShapes::Hex(0xF1F5F9), 9, 380.f, 70.f, 0.6f, -200.f, false, 0.2f);
-			AYJJEffects::Burst(this, Muzzle, YJJShapes::Hex(0xFFB020), 5, 520.f, 36.f, 0.25f, 0.f, false, 0.1f);
-			YJJAudio::Play(this, EYJJSound::Cannon, Muzzle, 0.9f, FMath::FRandRange(0.92f, 1.08f));
 		}
 	}
 	Barrel->SetRelativeLocation(FVector(-45.f * Recoil, 0, 78));
@@ -276,7 +373,7 @@ void AYJJTower::BuildFan()
 	for (int32 i = 0; i < 3; ++i)
 	{
 		USceneComponent* Blade = Pivot(this, Rotor, FVector::ZeroVector, FRotator(0, 0, i * 120.f));
-		Part(Blade, EYJJShape::Cube, FVector(0, 82, 0), FVector(8, 150, 60), 0xF8FAFC, FRotator(0, 0, 18));
+		Blades.Add(Part(Blade, EYJJShape::Cube, FVector(0, 82, 0), FVector(8, 150, 60), 0xF8FAFC, FRotator(0, 0, 18)));
 	}
 	Part(Rotor, EYJJShape::Sphere, FVector(6, 0, 0), FVector(52, 52, 52), 0xFACC15);
 
@@ -301,7 +398,7 @@ void AYJJTower::TickFan(float DeltaTime)
 	{
 		YJJAudio::Play(this, EYJJSound::FanOn, GetActorLocation(), 0.6f);
 	}
-	RotorSpeed = FMath::FInterpTo(RotorSpeed, bOn ? 1500.f : 90.f, DeltaTime, 3.f);
+	RotorSpeed = FMath::FInterpTo(RotorSpeed, bOn ? ByLevel(Level, 1500.f, 2100.f, 2800.f) : 90.f, DeltaTime, 3.f);
 	Rotor->AddLocalRotation(FRotator(0, 0, RotorSpeed * DeltaTime));
 
 	for (int32 i = 0; i < Streaks.Num(); ++i)
@@ -310,7 +407,10 @@ void AYJJTower::TickFan(float DeltaTime)
 		if (bOn)
 		{
 			const float X = 150.f + FMath::Fmod(WindTime * 1200.f + i * 173.f, FanReach - 200.f);
-			Streaks[i]->SetRelativeLocation(FVector(X, (YJJShapes::Hash(i * 3 + Pad) - 0.5f) * 380.f, 70.f + YJJShapes::Hash(i * 7 + 50) * 210.f));
+			// 회오리(Lv3)는 바람 줄기가 빙글빙글 위로 감아 오른다
+			const float Swirl = Level >= 3 ? FMath::Sin(WindTime * 9.f + i) * 90.f : 0.f;
+			const float Rise = Level >= 3 ? (X / FanReach) * 160.f : 0.f;
+			Streaks[i]->SetRelativeLocation(FVector(X, (YJJShapes::Hash(i * 3 + Pad) - 0.5f) * 380.f + Swirl, 70.f + YJJShapes::Hash(i * 7 + 50) * 210.f + Rise));
 		}
 	}
 
@@ -329,7 +429,9 @@ void AYJJTower::TickFan(float DeltaTime)
 		const FVector Local = Transform.InverseTransformPosition(Enemy->GetBodyLocation());
 		if (Local.X > 100.f && Local.X < FanReach && FMath::Abs(Local.Y) < 220.f && FMath::Abs(Local.Z) < 380.f)
 		{
-			Enemy->Push(Forward * 950.f * (1.f - 0.35f * Local.X / FanReach));
+			const float Strength = ByLevel(Level, 950.f, 1300.f, 1650.f) * (1.f - 0.35f * Local.X / FanReach);
+			// 회오리(Lv3): 위로도 불어 올린다. 가벼운 놈은 둥실 떠서 날아간다
+			Enemy->Push(Forward * Strength + FVector(0, 0, Level >= 3 ? 950.f : 0.f));
 		}
 	}
 }
@@ -345,6 +447,205 @@ void AYJJTower::BuildGuardPost()
 	Part(RootComponent, EYJJShape::Sphere, FVector(50, 60, 306), FVector(28, 28, 28), 0xFFD23F);
 }
 
+// ============================================================ 새총
+
+namespace
+{
+	constexpr float SlingAimRange = 1900.f;
+	const FVector PouchRest(-5.f, 0.f, 255.f);
+	const FVector PouchPulled(-150.f, 0.f, 225.f);
+	const FVector ProngTip(0.f, 72.f, 262.f);
+}
+
+void AYJJTower::BuildSling()
+{
+	Part(RootComponent, EYJJShape::Cube, FVector(0, 0, 30), FVector(160, 160, 60), 0x8B5A2B, FRotator::ZeroRotator, true);
+	Part(RootComponent, EYJJShape::Cube, FVector(0, 0, 63), FVector(166, 166, 8), 0x6B4423);
+	Turret = Pivot(this, RootComponent, FVector::ZeroVector);
+	// Y자 나무 가지: 줄기 + 두 갈래 + 빨간 끝
+	Part(Turret, EYJJShape::Cylinder, FVector(0, 0, 120), FVector(34, 34, 120), 0x9A6B3F);
+	for (const float Side : { -1.f, 1.f })
+	{
+		UStaticMeshComponent* Prong = Part(Turret, EYJJShape::Cylinder, FVector::ZeroVector, FVector(28, 28, 100), 0x9A6B3F);
+		const FVector Base(0, 0, 175);
+		const FVector Tip(ProngTip.X, ProngTip.Y * Side, ProngTip.Z);
+		Prong->SetRelativeLocationAndRotation((Base + Tip) * 0.5f, FRotationMatrix::MakeFromZ((Tip - Base).GetSafeNormal()).Rotator());
+		Prong->SetRelativeScale3D(FVector(0.28f, 0.28f, (Tip - Base).Size() / 100.f));
+		Part(Turret, EYJJShape::Sphere, Tip + FVector(0, 0, 6), FVector(34, 34, 34), 0xEF4444);
+	}
+
+	// 고무줄·주머니·올가미는 월드 좌표로 직접 움직인다
+	auto Loose = [this](uint32 ColorHex)
+	{
+		UStaticMeshComponent* Mesh = Part(RootComponent, EYJJShape::Cylinder, FVector::ZeroVector, FVector(10, 10, 100), ColorHex);
+		Mesh->SetUsingAbsoluteLocation(true);
+		Mesh->SetUsingAbsoluteRotation(true);
+		Mesh->SetUsingAbsoluteScale(true);
+		Mesh->SetCastShadow(false);
+		return Mesh;
+	};
+	Bands[0] = Loose(0xF97316);
+	Bands[1] = Loose(0xF97316);
+	Rope = Loose(0xFDE68A);
+	Rope->SetVisibility(false);
+	Pouch = Part(RootComponent, EYJJShape::Sphere, FVector::ZeroVector, FVector(50, 50, 30), 0x5B3A1E);
+	Pouch->SetUsingAbsoluteLocation(true);
+	Pouch->SetUsingAbsoluteRotation(true);
+	Pouch->SetUsingAbsoluteScale(true);
+	PouchLocal = PouchRest;
+}
+
+void AYJJTower::TickSling(float DeltaTime)
+{
+	UYJJGame* Game = UYJJGame::Get(this);
+	if (!Game)
+	{
+		return;
+	}
+	StateTime += DeltaTime;
+	AYJJWobbler* Held = Victim.Get();
+	if ((State == 1 || State == 2) && (!Held || !Held->IsAlive() || !Held->IsHeld()))
+	{
+		// 놓쳤다 (다른 타워에 맞아 죽었거나)
+		Victim = nullptr;
+		Held = nullptr;
+		State = 3;
+		StateTime = 0.f;
+	}
+
+	const float Limit = UYJJGame::SlingLimitKg(Level);
+	switch (State)
+	{
+	case 0:	// 가까운 가벼운 놈을 찾는다
+	{
+		PouchLocal = PouchRest;
+		Cooldown -= DeltaTime;
+		if (Cooldown > 0.f)
+		{
+			break;
+		}
+		AYJJWobbler* Best = nullptr;
+		float BestSq = FMath::Square(UYJJGame::TowerInfo(Type).Range);
+		for (AYJJWobbler* Enemy : Game->GetEnemies())
+		{
+			if (Enemy && Enemy->IsAlive() && !Enemy->IsHeld() && !Enemy->IsProjectile() && Enemy->GetWeight() <= Limit)
+			{
+				const float DistSq = FVector::DistSquared2D(Enemy->GetBodyLocation(), GetActorLocation());
+				if (DistSq < BestSq)
+				{
+					BestSq = DistSq;
+					Best = Enemy;
+				}
+			}
+		}
+		if (Best)
+		{
+			// 고르는 순간 붙잡는다 (다음 프레임의 "놓쳤나?" 검사가 IsHeld를 본다)
+			Best->Hold(Turret->GetComponentTransform().TransformPosition(PouchLocal) + FVector(0, 0, 25.f * Best->GetScale()));
+			Victim = Best;
+			State = 1;
+			StateTime = 0.f;
+			YJJAudio::Play(this, EYJJSound::Whoosh, GetActorLocation(), 0.6f, 1.4f);
+		}
+		break;
+	}
+	case 1:	// 올가미로 끌어온다
+	{
+		const FVector Target = Turret->GetComponentTransform().TransformPosition(PouchLocal) + FVector(0, 0, 25.f * Held->GetScale());
+		Held->Hold(Target);
+		if (FVector::Dist(Held->GetBodyLocation(), Target) < 60.f || StateTime > 1.3f)
+		{
+			State = 2;
+			StateTime = 0.f;
+			Game->AddFloater(Target + FVector(0, 0, 90.f), TEXT("덥석!"), YJJShapes::Hex(0xFFFFFF), 28.f);
+			YJJAudio::Play(this, EYJJSound::Grab, Target, 0.9f, FMath::FRandRange(0.9f, 1.3f) / FMath::Sqrt(Held->GetScale()));
+		}
+		break;
+	}
+	case 2:	// 겨누면서 고무줄을 당긴다
+	{
+		// 표적: 사거리 안에서 푸딩에 가장 가까이 간 놈. 없으면 뒤쪽 물로 던져 버린다
+		AYJJWobbler* Target = nullptr;
+		for (AYJJWobbler* Enemy : Game->GetEnemies())
+		{
+			if (Enemy && Enemy != Held && Enemy->IsAlive() && !Enemy->IsHeld()
+				&& FVector::DistSquared2D(Enemy->GetBodyLocation(), GetActorLocation()) < FMath::Square(SlingAimRange)
+				&& FVector::DistSquared2D(Enemy->GetBodyLocation(), GetActorLocation()) > FMath::Square(350.f)
+				&& (!Target || Enemy->GetProgress() > Target->GetProgress()))
+			{
+				Target = Enemy;
+			}
+		}
+		bAimAtWater = Target == nullptr;
+		if (Target)
+		{
+			AimPoint = Target->GetBodyLocation();
+			if (Target->IsStanding())
+			{
+				const FVector V = Target->GetBodyVelocity();
+				AimPoint += FVector(V.X, V.Y, 0.f) * 0.8f;
+			}
+		}
+		else
+		{
+			AimPoint = GetActorLocation() - GetActorForwardVector() * 1100.f + FVector(0, 0, YJJMap::WaterZ);
+		}
+		const FVector ToAim = (AimPoint - GetActorLocation()).GetSafeNormal2D();
+		const float Yaw = FMath::FixedTurn(Turret->GetComponentRotation().Yaw, FMath::RadiansToDegrees(FMath::Atan2(ToAim.Y, ToAim.X)), 360.f * DeltaTime);
+		Turret->SetWorldRotation(FRotator(0.f, Yaw, 0.f));
+
+		const float Draw = FMath::Min(StateTime / 0.7f, 1.f);
+		PouchLocal = FMath::Lerp(PouchRest, PouchPulled, Draw * Draw);
+		Held->Hold(Turret->GetComponentTransform().TransformPosition(PouchLocal) + FVector(0, 0, 25.f * Held->GetScale()));
+
+		if (StateTime > 0.85f)
+		{
+			// 슝! 포물선으로 표적에 꽂는다
+			const FVector From = Held->GetBodyLocation();
+			const float T = FMath::Clamp(FVector::Dist2D(AimPoint, From) / 1500.f, 0.55f, 1.2f);
+			const FVector To = AimPoint + FVector(0, 0, bAimAtWater ? 0.f : 30.f) - From;
+			const FVector Launch(To.X / T, To.Y / T, To.Z / T + 0.5f * 980.f * T);
+			Held->Fling(Launch, ByLevel(Level, 1.f, 1.25f, 1.5f));
+			Game->AddFloater(From + FVector(0, 0, 120.f), bAimAtWater ? TEXT("저리 가!") : TEXT("슝!"), YJJShapes::Hex(0xFFD23F), 32.f);
+			YJJAudio::Play(this, EYJJSound::Sling, From, 1.f, FMath::FRandRange(0.95f, 1.1f));
+			Victim = nullptr;
+			Shots++;
+			State = 3;
+			StateTime = 0.f;
+		}
+		break;
+	}
+	case 3:	// 고무줄이 앞으로 튕겼다가 돌아온다
+	{
+		const float T = FMath::Min(StateTime / 0.35f, 1.f);
+		const float Spring = FMath::Sin(T * PI * 2.5f) * (1.f - T);
+		PouchLocal = PouchRest + FVector(120.f * Spring, 0.f, 15.f * Spring);
+		if (T >= 1.f)
+		{
+			State = 0;
+			Cooldown = ByLevel(Level, 2.6f, 2.1f, 1.6f);
+		}
+		break;
+	}
+	}
+
+	// 주머니·고무줄·올가미 모양
+	const FTransform TurretTransform = Turret->GetComponentTransform();
+	const FVector PouchWorld = TurretTransform.TransformPosition(PouchLocal);
+	Pouch->SetWorldLocationAndRotation(PouchWorld, TurretTransform.GetRotation());
+	for (int32 i = 0; i < 2; ++i)
+	{
+		const FVector Tip = TurretTransform.TransformPosition(FVector(ProngTip.X, ProngTip.Y * (i ? 1.f : -1.f), ProngTip.Z));
+		Beam(Bands[i], Tip, PouchWorld, 10.f);
+	}
+	const bool bLasso = State == 1 && Held;
+	Rope->SetVisibility(bLasso);
+	if (bLasso)
+	{
+		Beam(Rope, PouchWorld, Held->GetBodyLocation(), 6.f);
+	}
+}
+
 // ============================================================ 대포알
 
 AYJJCannonBall::AYJJCannonBall()
@@ -355,16 +656,17 @@ AYJJCannonBall::AYJJCannonBall()
 	RootComponent = Ball;
 }
 
-void AYJJCannonBall::Launch(const FVector& Velocity)
+void AYJJCannonBall::Launch(const FVector& Velocity, float InPower)
 {
+	Power = InPower;
 	Ball->SetStaticMesh(YJJShapes::Mesh(EYJJShape::Sphere));
-	Ball->SetWorldScale3D(FVector(0.84f));
+	Ball->SetWorldScale3D(FVector(0.84f * FMath::Sqrt(Power)));
 	Ball->SetMaterial(0, YJJShapes::Solid(this, YJJShapes::Hex(0x1F2937)));
 	Ball->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	Ball->SetCollisionObjectType(ECC_WorldDynamic);
 	Ball->SetCollisionResponseToAllChannels(ECR_Block);
 	Ball->SetGenerateOverlapEvents(false);
-	Ball->SetMassOverrideInKg(NAME_None, 90.f, true);
+	Ball->SetMassOverrideInKg(NAME_None, 90.f * Power, true);
 	Ball->SetSimulatePhysics(true);
 	Ball->SetUseCCD(true);
 	Ball->SetNotifyRigidBodyCollision(true);
@@ -385,7 +687,7 @@ void AYJJCannonBall::Explode()
 {
 	ExplodedAge = Age;
 	const FVector Location = GetActorLocation();
-	const float Radius = 300.f;
+	const float Radius = 300.f * FMath::Sqrt(Power);
 	if (UYJJGame* Game = UYJJGame::Get(this))
 	{
 		TArray<TObjectPtr<AYJJWobbler>> Targets = Game->GetEnemies();
@@ -400,8 +702,8 @@ void AYJJCannonBall::Explode()
 			const float Dist = To.Size();
 			if (Dist < Radius + 40.f * Target->GetScale())
 			{
-				const float Power = FMath::Clamp(1.f - Dist / (Radius * 1.3f), 0.3f, 1.f);
-				Target->Knock(To.GetSafeNormal2D() * 880.f * Power + FVector(0, 0, 640.f * Power), 2.f, 15.f * Power);
+				const float Falloff = FMath::Clamp(1.f - Dist / (Radius * 1.3f), 0.3f, 1.f) * Power;
+				Target->Knock(To.GetSafeNormal2D() * 880.f * Falloff + FVector(0, 0, 640.f * Falloff), 2.f, 15.f * Falloff);
 			}
 		}
 	}

@@ -23,6 +23,9 @@ enum class EYJJSound : uint8
 	Lose,
 	Deny,		// 돈 없음
 	FanOn,
+	Upgrade,	// 강화 띠리링
+	Sling,		// 새총 고무줄 퉁
+	Grab,		// 붙잡힌 놈의 비명
 };
 
 namespace YJJAudio

@@ -232,6 +232,26 @@ void AYJJHUD::TowerIcon(EYJJTowerType Type, float X, float Y, float R)
 		Circle(X - R * 0.27f, Y - R * 0.4f, R * 0.06f, Ink, 8);
 		Circle(X + R * 0.05f, Y - R * 0.4f, R * 0.06f, Ink, 8);
 		break;
+	case EYJJTowerType::Sling:
+	{
+		// Y자 가지 + 주머니 속 분홍 꼬마
+		const FLinearColor Wood = YJJShapes::Hex(0x9A6B3F);
+		Rect(X - R * 0.16f, Y - R * 0.05f, R * 0.32f, R * 1.0f, Ink);
+		Rect(X - R * 0.09f, Y + R * 0.0f, R * 0.18f, R * 0.9f, Wood);
+		for (const float Side : { -1.f, 1.f })
+		{
+			Circle(X + Side * R * 0.5f, Y - R * 0.55f, R * 0.2f, Ink, 12);
+			Circle(X + Side * R * 0.5f, Y - R * 0.55f, R * 0.13f, YJJShapes::Hex(0xEF4444), 12);
+			Circle(X + Side * R * 0.27f, Y - R * 0.25f, R * 0.2f, Ink, 10);
+			Circle(X + Side * R * 0.27f, Y - R * 0.25f, R * 0.13f, Wood, 10);
+		}
+		Rect(X - R * 0.5f, Y - R * 0.6f, R * 1.0f, R * 0.08f, YJJShapes::Hex(0xF97316));
+		Circle(X, Y - R * 0.7f, R * 0.3f, Ink, 14);
+		Circle(X, Y - R * 0.7f, R * 0.23f, YJJShapes::Hex(0xFF7FA0), 14);
+		Circle(X - R * 0.08f, Y - R * 0.74f, R * 0.07f, FLinearColor::White, 8);
+		Circle(X + R * 0.08f, Y - R * 0.74f, R * 0.07f, FLinearColor::White, 8);
+		break;
+	}
 	}
 }
 
@@ -312,29 +332,30 @@ void AYJJHUD::DrawStatus(const UYJJGame& Game)
 
 void AYJJHUD::DrawWave(const UYJJGame& Game)
 {
-	const float W = S(420), H = S(92);
+	const float W = S(660), H = S(92);
 	const float X = Canvas->ClipX * 0.5f - W * 0.5f, Y = S(24);
 	Panel(X, Y, W, H, HudColor::PanelBg);
 	const int32 Shown = FMath::Clamp(Game.GetPhase() == EYJJPhase::Build ? Game.GetWave() + 1 : Game.GetWave(), 1, UYJJGame::WaveCount);
 	Text(FString::Printf(TEXT("웨이브 %d / %d"), Shown, UYJJGame::WaveCount), Canvas->ClipX * 0.5f, Y + S(30), 32, HudColor::Cream, EAlign::Center);
 	if (Game.GetPhase() == EYJJPhase::Wave)
 	{
-		Text(FString::Printf(TEXT("남은 적 %d"), Game.GetEnemiesLeft()), Canvas->ClipX * 0.5f, Y + S(68), 22, YJJShapes::Hex(0xFF9A9A), EAlign::Center);
+		Text(FString::Printf(TEXT("남은 적 %d  ·  총 %skg"), Game.GetEnemiesLeft(), *FText::AsNumber(UYJJGame::WaveDef(Game.GetWave()).BudgetKg).ToString()),
+			Canvas->ClipX * 0.5f, Y + S(68), 22, YJJShapes::Hex(0xFF9A9A), EAlign::Center);
 	}
 	else if (Game.GetPhase() == EYJJPhase::Build)
 	{
-		Text(Game.GetWavePreview(Game.GetWave() + 1), Canvas->ClipX * 0.5f, Y + S(68), 20, HudColor::Dim, EAlign::Center);
+		Text(Game.GetWavePreview(Game.GetWave() + 1), Canvas->ClipX * 0.5f, Y + S(68), 19, HudColor::Dim, EAlign::Center);
 	}
 }
 
 void AYJJHUD::DrawCards(const UYJJGame& Game, const AYJJCommander& Commander)
 {
-	const float CardW = S(214), CardH = S(124), Gap = S(14);
+	const float CardW = S(218), CardH = S(124), Gap = S(10);
 	const float Total = CardW * YJJTowerTypeCount + Gap * (YJJTowerTypeCount - 1);
 	const float X0 = Canvas->ClipX * 0.5f - Total * 0.5f;
 	const float Y0 = Canvas->ClipY - CardH - S(26);
 
-	Text(TEXT("발판 좌클릭: 짓기 · 우클릭: 팔기 · 적 클릭: 딱밤 · WASD/휠/QE: 카메라"), Canvas->ClipX * 0.5f, Y0 - S(22), 18, WithAlpha(HudColor::Cream, 0.85f), EAlign::Center);
+	Text(TEXT("빈 발판 클릭: 짓기 · 타워 클릭: 강화 · 우클릭: 팔기 · 적 클릭: 딱밤 · WASD/휠/QE: 카메라"), Canvas->ClipX * 0.5f, Y0 - S(22), 18, WithAlpha(HudColor::Cream, 0.85f), EAlign::Center);
 
 	for (int32 i = 0; i < YJJTowerTypeCount; ++i)
 	{
@@ -354,20 +375,16 @@ void AYJJHUD::DrawCards(const UYJJGame& Game, const AYJJCommander& Commander)
 		Panel(X, Y, CardW, CardH, bSelected ? FLinearColor(0.1f, 0.14f, 0.28f, 0.96f) : (bHover ? FLinearColor(0.09f, 0.12f, 0.22f, 0.9f) : HudColor::PanelBg));
 
 		const float Fade = bAfford ? 1.f : 0.45f;
-		Circle(X + S(52), Y + S(56), S(40), WithAlpha(FLinearColor(1.f, 1.f, 1.f, 0.1f), Fade));
-		if (bAfford)
+		Circle(X + S(48), Y + S(56), S(38), WithAlpha(FLinearColor(1.f, 1.f, 1.f, 0.1f), Fade));
+		TowerIcon(Type, X + S(48), Y + S(56), S(28));
+		if (!bAfford)
 		{
-			TowerIcon(Type, X + S(52), Y + S(56), S(30));
+			Circle(X + S(48), Y + S(56), S(38), FLinearColor(0.05f, 0.07f, 0.14f, 0.6f));
 		}
-		else
-		{
-			TowerIcon(Type, X + S(52), Y + S(56), S(30));
-			Circle(X + S(52), Y + S(56), S(40), FLinearColor(0.05f, 0.07f, 0.14f, 0.6f));
-		}
-		Text(Info.Name, X + S(102), Y + S(30), 22, WithAlpha(HudColor::Cream, Fade));
-		Text(Info.Blurb, X + S(102), Y + S(58), 15, WithAlpha(HudColor::Dim, Fade), EAlign::Left, 1.f);
-		Coin(X + S(114), Y + S(92), S(11));
-		Text(FString::Printf(TEXT("%d"), Info.Cost), X + S(132), Y + S(92), 24, bAfford ? HudColor::Gold : HudColor::Red);
+		Text(Info.Name, X + S(92), Y + S(30), 20, WithAlpha(HudColor::Cream, Fade));
+		Text(Info.Blurb, X + S(92), Y + S(58), 14, WithAlpha(HudColor::Dim, Fade), EAlign::Left, 1.f);
+		Coin(X + S(106), Y + S(92), S(11));
+		Text(FString::Printf(TEXT("%d"), Info.Cost), X + S(124), Y + S(92), 24, bAfford ? HudColor::Gold : HudColor::Red);
 
 		// 단축키
 		Circle(X + S(14), Y + S(14), S(15), HudColor::Ink);
@@ -421,7 +438,13 @@ void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 	// 덩치 큰 적의 체력 막대
 	for (const AYJJWobbler* Enemy : Game.GetEnemies())
 	{
-		if (!Enemy || !Enemy->IsAlive() || Enemy->GetHealthRatio() >= 0.999f)
+		if (!Enemy || !Enemy->IsAlive())
+		{
+			continue;
+		}
+		const bool bHeavy = Enemy->GetWeight() >= 150.f;
+		const bool bHurt = Enemy->GetHealthRatio() < 0.999f;
+		if (!bHeavy && !bHurt)
 		{
 			continue;
 		}
@@ -430,9 +453,17 @@ void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 		{
 			continue;
 		}
-		const float W = S(26.f + 22.f * Enemy->GetScale()), H = S(7);
-		Rect(Screen.X - W * 0.5f - S(2), Screen.Y - S(2), W + S(4), H + S(4), HudColor::Ink);
-		Rect(Screen.X - W * 0.5f, Screen.Y, W * Enemy->GetHealthRatio(), H, YJJShapes::Hex(0xFF5C5C));
+		if (bHurt)
+		{
+			const float W = S(26.f + 22.f * Enemy->GetScale()), H = S(7);
+			Rect(Screen.X - W * 0.5f - S(2), Screen.Y - S(2), W + S(4), H + S(4), HudColor::Ink);
+			Rect(Screen.X - W * 0.5f, Screen.Y, W * Enemy->GetHealthRatio(), H, YJJShapes::Hex(0xFF5C5C));
+		}
+		if (bHeavy)
+		{
+			// 무거운 놈은 몸무게를 달고 다닌다 (잘 안 날아간다는 신호)
+			Text(FString::Printf(TEXT("%.0fkg"), Enemy->GetWeight()), Screen.X, Screen.Y - S(16), 17, YJJShapes::Hex(0xFFD6A5), EAlign::Center, 2.f);
+		}
 	}
 
 	// 떠오르는 글자
@@ -460,7 +491,25 @@ void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 			FLinearColor Color = HudColor::Cream;
 			if (Game.HasTower(Pad))
 			{
-				Line = FString::Printf(TEXT("%s  ·  우클릭 팔기 +%d"), UYJJGame::TowerInfo(Game.GetPadTower(Pad)).Name, Game.SellValue(Pad));
+				const EYJJTowerType Type = Game.GetPadTower(Pad);
+				const FYJJTowerInfo& Info = UYJJGame::TowerInfo(Type);
+				const int32 Level = Game.GetPadLevel(Pad);
+				FString Extra;
+				if (Type == EYJJTowerType::Sling)
+				{
+					Extra = FString::Printf(TEXT(" (%.0fkg까지)"), UYJJGame::SlingLimitKg(Level));
+				}
+				if (Level < YJJMaxTowerLevel)
+				{
+					const int32 Cost = UYJJGame::UpgradeCost(Type, Level);
+					Line = FString::Printf(TEXT("%s Lv%d%s  ·  클릭 강화 %d: %s  ·  우클릭 팔기 +%d"), Info.Name, Level, *Extra, Cost,
+						Level == 1 ? Info.Upgrade2 : Info.Upgrade3, Game.SellValue(Pad));
+					Color = Game.GetGold() >= Cost ? HudColor::Gold : HudColor::Cream;
+				}
+				else
+				{
+					Line = FString::Printf(TEXT("%s Lv%d (최대)%s  ·  우클릭 팔기 +%d"), Info.Name, Level, *Extra, Game.SellValue(Pad));
+				}
 			}
 			else
 			{

@@ -31,6 +31,9 @@ namespace
 		case EYJJSound::Lose: return TEXT("SFX_Lose");
 		case EYJJSound::Deny: return TEXT("SFX_Deny");
 		case EYJJSound::FanOn: return TEXT("SFX_FanOn");
+		case EYJJSound::Upgrade: return TEXT("SFX_Upgrade");
+		case EYJJSound::Sling: return TEXT("SFX_Sling");
+		case EYJJSound::Grab: return TEXT("SFX_Grab");
 		}
 		return nullptr;
 	}
