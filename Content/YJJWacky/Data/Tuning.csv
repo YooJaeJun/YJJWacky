@@ -1,0 +1,56 @@
+﻿Name,Value,Note
+Game.StartGold,240,시작 골드
+Game.Lives,20,푸딩 체력
+Game.WaveBonusBase,20,웨이브를 막으면 주는 골드 = Base + PerWave x 웨이브
+Game.WaveBonusPerWave,4,
+Game.SellRatio,0.6,팔 때 돌려받는 비율 (강화비 포함)
+Game.MaxAlive,60,동시에 살아 있는 적 상한 (물리 부하)
+Game.GuardRespawn,3,물에 빠진 병사가 다시 오는 시간(초)
+Combo.Count,5,이 시간 안에 이만큼 쓰러지면 떼죽음
+Combo.Window,1.3,초
+Combo.Cooldown,4,떼죽음 연출 사이 최소 간격(초)
+Combo.SlowMo,0.3,슬로 모션 배율
+Combo.SlowMoTime,1.1,슬로 모션 시간(실시간 초)
+Combo.BonusPerKill,1,떼죽음 보너스 골드 = 마릿수 x 이 값
+Combo.BossBonus,25,대장 격파 보너스 골드
+Flick.Delay,1.2,딱밤 재충전(초)
+Flick.Side,420,옆으로 튕기는 속도(cm/s)
+Flick.Up,520,위로 튕기는 속도(cm/s)
+Flick.Damage,6,
+Punch.Reach,570,장갑이 뻗는 거리(cm)
+Punch.Forward,1350,"날리는 속도(cm/s), 무게로 나눔"
+Punch.Up,680,
+Punch.Damage,12,
+Cannon.Radius,300,"폭발 반경(cm), x sqrt(Power)"
+Cannon.Forward,880,
+Cannon.Up,640,
+Cannon.Damage,15,
+Cannon.Spread,260,Lv3 세 발 사이 간격(cm)
+Fan.OnTime,3.5,켜져 있는 시간(초)
+Fan.Reach,900,바람이 닿는 거리(cm)
+Fan.Width,220,바람 폭 반(cm)
+Guard.ClubSide,780,몽둥이가 휘둘리는 방향으로 날리는 속도
+Guard.ClubOut,420,바깥쪽으로 날리는 속도
+Guard.ClubUp,520,
+Guard.ClubDamage,14,
+Guard.Dizzy,1.1,돌고 나서 어지러운 시간(초)
+Sling.AimRange,1900,탄알을 쏠 수 있는 거리(cm)
+Sling.BowlForce,0.75,탄알에 맞은 놈이 받는 속도 = 탄알 속도 x 이 값 x sqrt(탄알 무게/60)
+Sling.BowlUp,420,
+Sling.BowlDamage,10,
+Sling.StrikeCount,3,이만큼 맞히면 스트라이크!
+Sling.HeavyHint,2.5,너무 무거운 놈만 있을 때 '무거워!' 뜨는 간격(초)
+Wobbler.HoverStiffness,190,몸통을 띄우는 스프링 (1/s²). 낮을수록 출렁
+Wobbler.HoverDamping,15,
+Wobbler.UprightStiffness,150,바로 서려는 힘. 낮을수록 비틀비틀
+Wobbler.UprightDamping,9,
+Wobbler.YawStiffness,45,가는 쪽으로 몸을 돌리는 힘
+Wobbler.MoveGain,5,
+Wobbler.MoveMaxAccel,1300,
+Wobbler.JoltThreshold,330,한 프레임 속도 변화가 이보다 크면 충돌로 친다
+Wobbler.StumbleThreshold,560,서 있는 놈이 나동그라지는 충격
+Wobbler.ImpactDamage,0.03,충돌 피해 = (충격 - 기준) x 이 값 / 무게
+Wobbler.GetUpTime,0.7,일어나서 온 힘으로 서기까지(초)
+Wobbler.WindExponent,0.8,바람이 무게에 반비례하는 정도 (1 = 정비례로 덜 밀림)
+Wobbler.Friction,0.35,
+Wobbler.Bounciness,0.3,통통 튀는 정도

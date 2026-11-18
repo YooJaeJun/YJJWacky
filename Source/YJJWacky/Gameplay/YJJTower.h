@@ -58,6 +58,8 @@ private:
 	void TickSling(float DeltaTime);
 	void SetPunchLength(float Length);
 	void FireCannonBall(const FVector& Origin, const FVector& Aim);
+	/** Towers.csv 의 이 타워 줄 */
+	const FYJJTowerRow& Row() const { return YJJData::Tower(Type); }
 
 	EYJJTowerType Type = EYJJTowerType::Punch;
 	int32 Pad = 0;
@@ -115,6 +117,7 @@ private:
 	FVector PouchLocal = FVector::ZeroVector;
 	FVector AimPoint = FVector::ZeroVector;
 	bool bAimAtWater = false;
+	float HeavyHintTime = 0.f;
 };
 
 /** 대포알: 진짜로 굴러가며 흐느적이를 볼링핀처럼 쓰러뜨리고, 처음 닿은 곳에서 한 번 터진다 */

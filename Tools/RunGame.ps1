@@ -30,5 +30,5 @@ if ($Mode -ne "none") {
         $Process.Kill()
         Write-Host "Timed out"
     }
-    Select-String -Path $Log -Pattern "\[AutoPilot\]|\[Game\]|\[Wobbler\]|Error:|Ensure condition failed|Fatal|Failed to compile" | ForEach-Object { $_.Line }
+    Select-String -Path $Log -Pattern "\[AutoPilot\]|\[Game\]|\[Data\]|\[Loc\]|\[Wobbler\]|Error:|Ensure condition failed|Fatal|Failed to compile" | ForEach-Object { $_.Line }
 }

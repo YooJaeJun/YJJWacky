@@ -1,0 +1,6 @@
+﻿Name,NameKey,BlurbKey,Upgrade2Key,Upgrade3Key,Cost,Range,Upgrade2CostRatio,Upgrade3CostRatio,Power1,Power2,Power3,Cooldown1,Cooldown2,Cooldown3,ParamA1,ParamA2,ParamA3,ParamB1,ParamB2,ParamB3,Note
+Punch,Tower.Punch,Tower.Punch.Blurb,Tower.Punch.Up2,Tower.Punch.Up3,60,640,0.9,1.5,1,1.35,1.75,1.4,1.1,0.75,150,180,210,1,1.3,1.6,"Power=날리는 힘 배율, Cooldown=재장전(초), ParamA=맞는 폭 반(cm), ParamB=장갑 크기"
+Cannon,Tower.Cannon,Tower.Cannon.Blurb,Tower.Cannon.Up2,Tower.Cannon.Up3,110,1700,0.9,1.5,1,1.3,1.5,3.4,3.0,2.7,1,1,3,1,1.15,1.3,"Power=포탄 크기·폭발 반경·힘 배율, Cooldown=재장전(초), ParamA=한 번에 쏘는 포탄 수, ParamB=포신 크기"
+Fan,Tower.Fan,Tower.Fan.Blurb,Tower.Fan.Up2,Tower.Fan.Up3,80,900,0.9,1.5,950,1300,1650,2.0,2.0,2.0,0,0,950,1,1.15,1.3,"Power=미는 가속(cm/s²), Cooldown=꺼져 있는 시간(초), ParamA=위로 띄우는 가속(회오리), ParamB=날개 크기"
+Guard,Tower.Guard,Tower.Guard.Blurb,Tower.Guard.Up2,Tower.Guard.Up3,70,300,0.9,1.5,1,1.35,1.75,1.3,1.3,1.3,1,1.25,1.5,1.25,1.55,1.85,"Power=몽둥이 힘 배율, Cooldown=회오리 사이 쉬는 시간(초), ParamA=몽둥이 크기, ParamB=도는 시간(초)"
+Sling,Tower.Sling,Tower.Sling.Blurb,Tower.Sling.Up2,Tower.Sling.Up3,90,650,0.9,1.5,1,1.25,1.5,2.6,2.1,1.6,70,200,520,1,1.2,1.45,"Power=탄알 힘 배율, Cooldown=재장전(초), ParamA=들 수 있는 무게(kg), ParamB=주머니 크기, Range=붙잡는 거리"

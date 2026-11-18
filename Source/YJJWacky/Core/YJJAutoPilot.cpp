@@ -163,9 +163,8 @@ void UYJJAutoPilot::StartAutoPlay()
 			Check(Game->Build(0, Trial.Type), FString::Printf(TEXT("build %s"), Trial.Name));
 			if (Trial.Type == EYJJTowerType::Sling)
 			{
-				// 새총은 가벼운 놈을 집어서 뒤따라오는 졸병 무리에 쏜다
-				SpawnKind(EYJJWobblerKind::Tiny, 4);
-				SpawnSquad(4, 0, 0, 0);
+				// 1웨이브처럼 졸병만 보낸다 (Lv1 새총이 60kg 졸병을 집어야 한다)
+				SpawnSquad(8, 0, 0, 0);
 			}
 			else
 			{
@@ -204,7 +203,7 @@ void UYJJAutoPilot::StartAutoPlay()
 			const int32 Expected = UYJJGame::UpgradeCost(EYJJTowerType::Punch, 1) + UYJJGame::UpgradeCost(EYJJTowerType::Punch, 2);
 			Check(bUp2 && bUp3 && !bUp4 && Game->GetPadLevel(0) == 3 && Spent == Expected,
 				FString::Printf(TEXT("punch upgrades to Lv3 and stops (level %d, spent %d, expected %d)"), Game->GetPadLevel(0), Spent, Expected));
-			Check(Game->SellValue(0) == FMath::RoundToInt((UYJJGame::TowerInfo(EYJJTowerType::Punch).Cost + Expected) * 0.6f),
+			Check(Game->SellValue(0) == FMath::RoundToInt((UYJJGame::TowerInfo(EYJJTowerType::Punch).Cost + Expected) * YJJData::Tune(TEXT("Game.SellRatio"), 0.6f)),
 				FString::Printf(TEXT("sell value counts upgrades (%d)"), Game->SellValue(0)));
 			SpawnKind(EYJJWobblerKind::Brute, 3);
 			MarkKills = Game->GetKills();
@@ -257,7 +256,7 @@ void UYJJAutoPilot::StartAutoPlay()
 	// 4. 실제 웨이브: 사람처럼 번 돈으로 짓는다 (기본 세 판, -yjjwaves=N 으로 지정)
 	int32 WaveGoal = 3;
 	FParse::Value(FCommandLine::Get(), TEXT("yjjwaves="), WaveGoal);
-	WaveGoal = FMath::Clamp(WaveGoal, 1, UYJJGame::WaveCount);
+	WaveGoal = FMath::Clamp(WaveGoal, 1, UYJJGame::GetWaveCount());
 	Add(0.3f, [this, Game] {
 		Game->DebugReset(240, true);
 		View(FVector(-360, 60, 0), -90.f, -54.f, 5000.f);

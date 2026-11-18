@@ -5,6 +5,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/YJJAudio.h"
 #include "Core/YJJGame.h"
+#include "Data/YJJLoc.h"
 #include "Engine/World.h"
 #include "Gameplay/YJJEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -27,19 +28,16 @@ namespace
 	/** 서 있을 때 몸통 가운데 높이 */
 	constexpr float HoverHeight = 92.f;
 
-	// 버티는 힘. 일부러 무르게 잡아서 비틀거린다
-	constexpr float HoverStiffness = 190.f;		// 1/s²
-	constexpr float HoverDamping = 15.f;		// 1/s
-	constexpr float UprightStiffness = 150.f;
-	constexpr float UprightDamping = 9.f;
-	constexpr float YawStiffness = 45.f;
-	constexpr float MoveGain = 5.f;
-	constexpr float MoveMaxAccel = 1300.f;
-
-	/** 한 프레임에 이만큼 속도가 바뀌면 "세게 맞았다" */
-	constexpr float JoltThreshold = 330.f;
-	/** 서 있는 놈이 나동그라지는 충격 */
-	constexpr float StumbleThreshold = 560.f;
+	// 버티는 힘·충격 기준은 Tuning.csv (Wobbler.*). 일부러 무르게 잡아서 비틀거린다
+	float HoverStiffness() { return YJJData::Tune(TEXT("Wobbler.HoverStiffness"), 190.f); }
+	float HoverDamping() { return YJJData::Tune(TEXT("Wobbler.HoverDamping"), 15.f); }
+	float UprightStiffness() { return YJJData::Tune(TEXT("Wobbler.UprightStiffness"), 150.f); }
+	float UprightDamping() { return YJJData::Tune(TEXT("Wobbler.UprightDamping"), 9.f); }
+	float YawStiffness() { return YJJData::Tune(TEXT("Wobbler.YawStiffness"), 45.f); }
+	float MoveGain() { return YJJData::Tune(TEXT("Wobbler.MoveGain"), 5.f); }
+	float MoveMaxAccel() { return YJJData::Tune(TEXT("Wobbler.MoveMaxAccel"), 1300.f); }
+	float JoltThreshold() { return YJJData::Tune(TEXT("Wobbler.JoltThreshold"), 330.f); }
+	float StumbleThreshold() { return YJJData::Tune(TEXT("Wobbler.StumbleThreshold"), 560.f); }
 
 	UPhysicalMaterial* BodyMaterial()
 	{
@@ -47,8 +45,8 @@ namespace
 		if (!Cached.IsValid())
 		{
 			UPhysicalMaterial* Material = NewObject<UPhysicalMaterial>(GetTransientPackage(), TEXT("YJJWobblerBody"));
-			Material->Friction = 0.35f;
-			Material->Restitution = 0.3f;	// 통통 튀어야 웃기다
+			Material->Friction = YJJData::Tune(TEXT("Wobbler.Friction"), 0.35f);
+			Material->Restitution = YJJData::Tune(TEXT("Wobbler.Bounciness"), 0.3f);	// 통통 튀어야 웃기다
 			Material->AddToRoot();
 			Cached = Material;
 		}
@@ -56,24 +54,9 @@ namespace
 	}
 }
 
-const FYJJWobblerSpec& AYJJWobbler::Spec(EYJJWobblerKind Kind)
+const FYJJEnemyRow& AYJJWobbler::Spec(EYJJWobblerKind Kind)
 {
-	//                                     이름              크기   체력   속도  현상금 깨물기 무게kg  색
-	static const FYJJWobblerSpec Grunt{ TEXT("졸병"), 1.2f, 30.f, 190.f, 5, 1, 60.f, 0xE5484D };
-	static const FYJJWobblerSpec Runner{ TEXT("날쌘돌이"), 0.9f, 16.f, 310.f, 4, 1, 35.f, 0xF47B3E };
-	static const FYJJWobblerSpec Brute{ TEXT("뚱보"), 1.7f, 110.f, 135.f, 14, 2, 180.f, 0xB3262E };
-	static const FYJJWobblerSpec Boss{ TEXT("대장"), 2.6f, 480.f, 110.f, 70, 6, 500.f, 0x8E1F3A };
-	static const FYJJWobblerSpec Tiny{ TEXT("꼬마"), 0.72f, 9.f, 250.f, 2, 1, 15.f, 0xFF7FA0 };
-	static const FYJJWobblerSpec Guard{ TEXT("병사"), 1.35f, 1.f, 260.f, 0, 0, 100.f, 0x3B82F6 };
-	switch (Kind)
-	{
-	case EYJJWobblerKind::Tiny: return Tiny;
-	case EYJJWobblerKind::Runner: return Runner;
-	case EYJJWobblerKind::Brute: return Brute;
-	case EYJJWobblerKind::Boss: return Boss;
-	case EYJJWobblerKind::Guard: return Guard;
-	default: return Grunt;
-	}
+	return YJJData::Enemy(Kind);
 }
 
 AYJJWobbler::AYJJWobbler()
@@ -174,7 +157,7 @@ void AYJJWobbler::Setup(EYJJWobblerKind InKind, float InLateral, const FVector& 
 	Level = FMath::Clamp(InLevel, 1, 3);
 	Lateral = InLateral;
 	Post = InPost;
-	const FYJJWobblerSpec& Info = Spec(Kind);
+	const FYJJEnemyRow& Info = Spec(Kind);
 	S = Info.Scale;
 	Health = MaxHealth = Info.Health;
 	Phase = FMath::FRand() * TWO_PI;
@@ -214,7 +197,7 @@ void AYJJWobbler::Setup(EYJJWobblerKind InKind, float InLateral, const FVector& 
 
 void AYJJWobbler::BuildLooks()
 {
-	const FLinearColor Color = YJJShapes::Hex(Spec(Kind).ColorHex);
+	const FLinearColor Color = Spec(Kind).LinearColor();
 	UMaterialInterface* Body = YJJShapes::Solid(this, Color);
 	UMaterialInterface* Dark = YJJShapes::Solid(this, YJJShapes::Shade(Color, 0.72f));
 	UMaterialInterface* White = YJJShapes::Solid(this, YJJShapes::Hex(0xFFFFFF));
@@ -290,7 +273,7 @@ void AYJJWobbler::BuildLooks()
 		Piece(Head, EYJJShape::Cylinder, FVector(0, 0, 19), FVector(64, 64, 30), YJJShapes::Solid(this, YJJShapes::Hex(0xCBD5E1)), false);
 		// 강화하면 몽둥이가 커지고, 3단계는 쇠 징이 박힌다
 		UMaterialInterface* Wood = YJJShapes::Solid(this, YJJShapes::Hex(Level >= 2 ? 0x7C4A21 : 0x9A6B3F));
-		const float Club = 1.f + 0.25f * (Level - 1);
+		const float Club = YJJData::Tower(EYJJTowerType::Guard).ParamA(Level);
 		Piece(Arms[1], EYJJShape::Cylinder, FVector(0, 0, -ArmHalf - 55.f * Club), FVector(15, 15, 120 * Club), Wood, false);
 		Piece(Arms[1], EYJJShape::Sphere, FVector(0, 0, -ArmHalf - 112.f * Club), FVector(40, 40, 46) * Club, Wood, false);
 		if (Level >= 3)
@@ -346,7 +329,7 @@ void AYJJWobbler::Knock(const FVector& VelocityChange, float LimpSeconds, float 
 
 void AYJJWobbler::Push(const FVector& Acceleration)
 {
-	PendingPush += Acceleration / FMath::Pow(Spec(Kind).Heft(), 0.8f);
+	PendingPush += Acceleration / FMath::Pow(Spec(Kind).Heft(), YJJData::Tune(TEXT("Wobbler.WindExponent"), 0.8f));
 	Blown = 0.3f;
 }
 
@@ -458,15 +441,17 @@ void AYJJWobbler::TickProjectile(float DeltaTime, const FVector& Location, const
 			Bowled.Add(Other);
 			NewHits++;
 			const FVector Side = (OtherLocation - Location).GetSafeNormal2D();
-			const float Force = FMath::Min(Speed, 1500.f) * 0.75f * MyHeft * ProjectilePower;
-			Other->Knock((Dir * 0.7f + Side * 0.5f).GetSafeNormal() * Force + FVector(0, 0, 420.f * ProjectilePower), 1.8f, 10.f * MyHeft * ProjectilePower);
+			const float Force = FMath::Min(Speed, 1500.f) * YJJData::Tune(TEXT("Sling.BowlForce"), 0.75f) * MyHeft * ProjectilePower;
+			Other->Knock((Dir * 0.7f + Side * 0.5f).GetSafeNormal() * Force + FVector(0, 0, YJJData::Tune(TEXT("Sling.BowlUp"), 420.f) * ProjectilePower), 1.8f,
+				YJJData::Tune(TEXT("Sling.BowlDamage"), 10.f) * MyHeft * ProjectilePower);
 			AYJJEffects::Burst(this, OtherLocation, YJJShapes::Hex(0xFFE066), 6, 460.f, 24.f, 0.4f, 700.f, true, 0.5f);
 			YJJAudio::Play(this, EYJJSound::Bonk, OtherLocation, 0.9f, FMath::FRandRange(0.8f, 1.1f));
 		}
 	}
-	if (NewHits > 0 && Bowled.Num() >= 3 && Bowled.Num() - NewHits < 3)
+	const int32 Strike = FMath::RoundToInt(YJJData::Tune(TEXT("Sling.StrikeCount"), 3.f));
+	if (NewHits > 0 && Bowled.Num() >= Strike && Bowled.Num() - NewHits < Strike)
 	{
-		Game->AddFloater(Location + FVector(0, 0, 160.f), TEXT("스트라이크!"), YJJShapes::Hex(0xFFD23F), 40.f);
+		Game->AddFloater(Location + FVector(0, 0, 160.f), YJJLoc::Get(TEXT("Float.Strike")), YJJShapes::Hex(0xFFD23F), 40.f);
 	}
 }
 
@@ -482,7 +467,7 @@ void AYJJWobbler::Die(bool bDrowned)
 	if (!bDrowned)
 	{
 		// 축 늘어지고 색이 바랜다
-		const FLinearColor Color = YJJShapes::Hex(Spec(Kind).ColorHex);
+		const FLinearColor Color = Spec(Kind).LinearColor();
 		const FLinearColor Pale = FMath::Lerp(Color, YJJShapes::Hex(0xB9B4AE), 0.65f);
 		UMaterialInterface* Material = YJJShapes::Solid(this, Pale);
 		for (UStaticMeshComponent* Mesh : Skin)
@@ -608,17 +593,17 @@ void AYJJWobbler::Tick(float DeltaTime)
 	{
 		// 공중에서는 관절이 휘둘리며 몸통 속도가 출렁이므로, 땅에 닿을 만큼 낮을 때만 충돌로 친다
 		// (공중에서 체력이 다 깎여 죽으면 물에 빠져도 풍덩으로 안 쳐진다)
-		if (bLimp && KnockedTime < 5.f && Jolt > JoltThreshold && bGround && Height < 70.f * S)
+		if (bLimp && KnockedTime < 5.f && Jolt > JoltThreshold() && bGround && Height < 70.f * S)
 		{
 			// 날아가다 땅에 처박혔다
 			AYJJEffects::Burst(this, Location + FVector(0, 0, 40.f * S), YJJShapes::Hex(0xFFE066), 4, 380.f, 20.f, 0.35f, 600.f, true, 0.6f);
-			TakeHit((Jolt - JoltThreshold) * 0.03f / Spec(Kind).Heft());
+			TakeHit((Jolt - JoltThreshold()) * YJJData::Tune(TEXT("Wobbler.ImpactDamage"), 0.03f) / Spec(Kind).Heft());
 			if (bDead)
 			{
 				return;
 			}
 		}
-		else if (!bLimp && Jolt > StumbleThreshold)
+		else if (!bLimp && Jolt > StumbleThreshold())
 		{
 			// 서 있다가 날아온 놈에게 치였다: 다치진 않고 나동그라진다 (도미노)
 			GoLimp(FMath::Clamp(Jolt / 700.f, 0.6f, 1.8f) / FMath::Sqrt(Spec(Kind).Heft()));
@@ -653,7 +638,7 @@ void AYJJWobbler::Tick(float DeltaTime)
 			return;
 		}
 	}
-	Balance = FMath::Min(1.f, Balance + DeltaTime / 0.7f);
+	Balance = FMath::Min(1.f, Balance + DeltaTime / FMath::Max(0.05f, YJJData::Tune(TEXT("Wobbler.GetUpTime"), 0.7f)));
 
 	if (bGround)
 	{
@@ -714,9 +699,9 @@ void AYJJWobbler::Tick(float DeltaTime)
 	float Lift = 0.f;
 	if (bGround)
 	{
-		Lift = FMath::Clamp(HoverStiffness * (HoverHeight * S - Height) - HoverDamping * Velocity.Z, -600.f, 4500.f) + 980.f;
+		Lift = FMath::Clamp(HoverStiffness() * (HoverHeight * S - Height) - HoverDamping() * Velocity.Z, -600.f, 4500.f) + 980.f;
 	}
-	const FVector Move = ((DesiredVelocity - Velocity2D) * MoveGain).GetClampedToMaxSize(MoveMaxAccel);
+	const FVector Move = ((DesiredVelocity - Velocity2D) * MoveGain()).GetClampedToMaxSize(MoveMaxAccel());
 	Torso->AddForce((FVector(0, 0, Lift) + Move) * TotalMass * Balance + PendingPush * TotalMass);
 	PendingPush = FVector::ZeroVector;
 
@@ -734,7 +719,7 @@ void AYJJWobbler::Tick(float DeltaTime)
 	const FVector Up = Torso->GetUpVector();
 	const FVector Spin = Torso->GetPhysicsAngularVelocityInRadians();
 	const float Firm = (Blown > 0.f || Dizzy > 0.f) ? 0.45f : 1.f;
-	Align(Torso, Up, UpTarget, UprightStiffness * Firm, UprightDamping, FVector::ZeroVector);
+	Align(Torso, Up, UpTarget, UprightStiffness() * Firm, UprightDamping(), FVector::ZeroVector);
 
 	// 가는 쪽 보기
 	const FVector Forward = Torso->GetForwardVector();
@@ -746,7 +731,7 @@ void AYJJWobbler::Tick(float DeltaTime)
 	else
 	{
 		const float YawError = FMath::FindDeltaAngleRadians(FMath::Atan2(Forward.Y, Forward.X), FMath::Atan2(Facing.Y, Facing.X));
-		Torso->AddTorqueInRadians(FVector(0, 0, YawError * YawStiffness) * Balance, NAME_None, true);
+		Torso->AddTorqueInRadians(FVector(0, 0, YawError * YawStiffness()) * Balance, NAME_None, true);
 	}
 
 	// 다리: 번갈아 앞뒤로
@@ -806,7 +791,7 @@ void AYJJWobbler::TickGuard(float DeltaTime, const FVector& Location, FVector& O
 		SpinTime -= DeltaTime;
 		// 몽둥이(손에서 끝까지)에 닿은 적을 날린다
 		const FVector Hand = Arms[1]->GetComponentLocation() - Arms[1]->GetUpVector() * ArmHalf * S;
-		const FVector Tip = Hand - Arms[1]->GetUpVector() * 125.f * S * (1.f + 0.25f * (Level - 1));
+		const FVector Tip = Hand - Arms[1]->GetUpVector() * 125.f * S * YJJData::Tower(EYJJTowerType::Guard).ParamA(Level);
 		const float Now = GetWorld()->GetTimeSeconds();
 		if (Game)
 		{
@@ -825,8 +810,10 @@ void AYJJWobbler::TickGuard(float DeltaTime, const FVector& Location, FVector& O
 					// 몽둥이가 휘둘리는 방향 + 바깥쪽
 					const FVector Out = (P - Location).GetSafeNormal2D();
 					const FVector Tangent(-Out.Y, Out.X, 0.f);
-					const float Power = 1.f + 0.35f * (Level - 1);
-					Enemy->Knock((Tangent * 780.f + Out * 420.f + FVector(0, 0, 520.f)) * Power, 1.6f, 14.f * Power);
+					const float Power = YJJData::Tower(EYJJTowerType::Guard).Power(Level);
+					const FVector Club = Tangent * YJJData::Tune(TEXT("Guard.ClubSide"), 780.f) + Out * YJJData::Tune(TEXT("Guard.ClubOut"), 420.f)
+						+ FVector(0, 0, YJJData::Tune(TEXT("Guard.ClubUp"), 520.f));
+					Enemy->Knock(Club * Power, 1.6f, YJJData::Tune(TEXT("Guard.ClubDamage"), 14.f) * Power);
 					AYJJEffects::Burst(this, P, YJJShapes::Hex(0xFFE066), 6, 420.f, 22.f, 0.4f, 700.f, true, 0.6f);
 					YJJAudio::Play(this, EYJJSound::Bonk, P, 0.9f, FMath::FRandRange(0.9f, 1.2f));
 				}
@@ -835,14 +822,14 @@ void AYJJWobbler::TickGuard(float DeltaTime, const FVector& Location, FVector& O
 		if (SpinTime <= 0.f)
 		{
 			bSpinning = false;
-			SpinCooldown = 1.3f;
-			Dizzy = 1.1f;	// 돌고 나면 어지럽다
+			SpinCooldown = YJJData::Tower(EYJJTowerType::Guard).Cooldown(Level);
+			Dizzy = YJJData::Tune(TEXT("Guard.Dizzy"), 1.1f);	// 돌고 나면 어지럽다
 		}
 	}
 	else if (Target && SpinCooldown <= 0.f && FVector::DistSquared2D(Target->GetBodyLocation(), Location) < FMath::Square(250.f * S + 60.f * Target->GetScale()))
 	{
 		bSpinning = true;
-		SpinTime = 1.25f + 0.3f * (Level - 1);
+		SpinTime = YJJData::Tower(EYJJTowerType::Guard).ParamB(Level);
 		YJJAudio::Play(this, EYJJSound::Whoosh, Location, 0.7f);
 	}
 }

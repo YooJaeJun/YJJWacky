@@ -1,6 +1,7 @@
 #include "UI/YJJHUD.h"
 
 #include "CanvasItem.h"
+#include "Data/YJJLoc.h"
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
 #include "Engine/World.h"
@@ -316,10 +317,10 @@ void AYJJHUD::DrawStatus(const UYJJGame& Game)
 	Panel(X, Y, W, H, HudColor::PanelBg);
 
 	// 푸딩 체력
-	const float Ratio = static_cast<float>(Game.GetLives()) / UYJJGame::MaxLives;
+	const float Ratio = static_cast<float>(Game.GetLives()) / FMath::Max(1, UYJJGame::GetMaxLives());
 	Heart(X + S(38), Y + S(34), S(15), HudColor::Ink);
 	Heart(X + S(38), Y + S(34), S(12), Ratio > 0.35f ? YJJShapes::Hex(0xFF5C7A) : HudColor::Red);
-	Text(TEXT("푸딩"), X + S(66), Y + S(34), 24, HudColor::Cream);
+	Text(YJJLoc::Get(TEXT("Hud.Pudding")), X + S(66), Y + S(34), 24, HudColor::Cream);
 	const float BarX = X + S(128), BarW = S(128), BarH = S(18);
 	Panel(BarX - S(3), Y + S(34) - BarH * 0.5f - S(3), BarW + S(6), BarH + S(6), HudColor::Ink, 9.f);
 	Panel(BarX, Y + S(34) - BarH * 0.5f, FMath::Max(BarW * Ratio, S(4)), BarH, Ratio > 0.35f ? YJJShapes::Hex(0xFFD766) : HudColor::Red, 7.f);
@@ -335,11 +336,11 @@ void AYJJHUD::DrawWave(const UYJJGame& Game)
 	const float W = S(660), H = S(92);
 	const float X = Canvas->ClipX * 0.5f - W * 0.5f, Y = S(24);
 	Panel(X, Y, W, H, HudColor::PanelBg);
-	const int32 Shown = FMath::Clamp(Game.GetPhase() == EYJJPhase::Build ? Game.GetWave() + 1 : Game.GetWave(), 1, UYJJGame::WaveCount);
-	Text(FString::Printf(TEXT("웨이브 %d / %d"), Shown, UYJJGame::WaveCount), Canvas->ClipX * 0.5f, Y + S(30), 32, HudColor::Cream, EAlign::Center);
+	const int32 Shown = FMath::Clamp(Game.GetPhase() == EYJJPhase::Build ? Game.GetWave() + 1 : Game.GetWave(), 1, FMath::Max(1, UYJJGame::GetWaveCount()));
+	Text(YJJLoc::Format(TEXT("Hud.Wave"), { Shown, UYJJGame::GetWaveCount() }), Canvas->ClipX * 0.5f, Y + S(30), 32, HudColor::Cream, EAlign::Center);
 	if (Game.GetPhase() == EYJJPhase::Wave)
 	{
-		Text(FString::Printf(TEXT("남은 적 %d  ·  총 %skg"), Game.GetEnemiesLeft(), *FText::AsNumber(UYJJGame::WaveDef(Game.GetWave()).BudgetKg).ToString()),
+		Text(YJJLoc::Format(TEXT("Hud.WaveLeft"), { Game.GetEnemiesLeft(), FText::AsNumber(UYJJGame::WaveDef(Game.GetWave()).BudgetKg).ToString() }),
 			Canvas->ClipX * 0.5f, Y + S(68), 22, YJJShapes::Hex(0xFF9A9A), EAlign::Center);
 	}
 	else if (Game.GetPhase() == EYJJPhase::Build)
@@ -355,12 +356,12 @@ void AYJJHUD::DrawCards(const UYJJGame& Game, const AYJJCommander& Commander)
 	const float X0 = Canvas->ClipX * 0.5f - Total * 0.5f;
 	const float Y0 = Canvas->ClipY - CardH - S(26);
 
-	Text(TEXT("빈 발판 클릭: 짓기 · 타워 클릭: 강화 · 우클릭: 팔기 · 적 클릭: 딱밤 · WASD/휠/QE: 카메라"), Canvas->ClipX * 0.5f, Y0 - S(22), 18, WithAlpha(HudColor::Cream, 0.85f), EAlign::Center);
+	Text(YJJLoc::Get(TEXT("Hud.Controls")), Canvas->ClipX * 0.5f, Y0 - S(22), 18, WithAlpha(HudColor::Cream, 0.85f), EAlign::Center);
 
 	for (int32 i = 0; i < YJJTowerTypeCount; ++i)
 	{
 		const EYJJTowerType Type = static_cast<EYJJTowerType>(i);
-		const FYJJTowerInfo& Info = UYJJGame::TowerInfo(Type);
+		const FYJJTowerRow& Info = UYJJGame::TowerInfo(Type);
 		const bool bSelected = Commander.GetSelected() == Type;
 		const bool bAfford = Game.GetGold() >= Info.Cost;
 		const float X = X0 + i * (CardW + Gap);
@@ -381,8 +382,8 @@ void AYJJHUD::DrawCards(const UYJJGame& Game, const AYJJCommander& Commander)
 		{
 			Circle(X + S(48), Y + S(56), S(38), FLinearColor(0.05f, 0.07f, 0.14f, 0.6f));
 		}
-		Text(Info.Name, X + S(92), Y + S(30), 20, WithAlpha(HudColor::Cream, Fade));
-		Text(Info.Blurb, X + S(92), Y + S(58), 14, WithAlpha(HudColor::Dim, Fade), EAlign::Left, 1.f);
+		Text(UYJJGame::TowerName(Type), X + S(92), Y + S(30), 20, WithAlpha(HudColor::Cream, Fade));
+		Text(UYJJGame::TowerBlurb(Type), X + S(92), Y + S(58), 14, WithAlpha(HudColor::Dim, Fade), EAlign::Left, 1.f);
 		Coin(X + S(106), Y + S(92), S(11));
 		Text(FString::Printf(TEXT("%d"), Info.Cost), X + S(124), Y + S(92), 24, bAfford ? HudColor::Gold : HudColor::Red);
 
@@ -407,7 +408,7 @@ void AYJJHUD::DrawStart(const UYJJGame& Game)
 	AddButton(X, Y, W, H, ButtonStartWave);
 	Panel(X - S(5), Y - S(5), W + S(10), H + S(10), HudColor::Ink, 22.f);
 	Panel(X, Y, W, H, bHover ? YJJShapes::Hex(0xFF7A45) : YJJShapes::Hex(0xF2542D), 18.f);
-	Text(Game.GetWave() == 0 ? TEXT("시작!") : TEXT("다음 웨이브!"), X + W * 0.5f, Y + H * 0.42f, 34, HudColor::Cream, EAlign::Center, 3.f);
+	Text(YJJLoc::Get(Game.GetWave() == 0 ? TEXT("Hud.Start") : TEXT("Hud.NextWave")), X + W * 0.5f, Y + H * 0.42f, 34, HudColor::Cream, EAlign::Center, 3.f);
 	Text(TEXT("Space"), X + W * 0.5f, Y + H * 0.8f, 16, WithAlpha(HudColor::Cream, 0.85f), EAlign::Center, 1.f);
 
 	if (Game.GetWave() == 0)
@@ -416,8 +417,8 @@ void AYJJHUD::DrawStart(const UYJJGame& Game)
 		const float PW = S(760), PH = S(84);
 		const float PX = Canvas->ClipX * 0.5f - PW * 0.5f, PY = S(140);
 		Panel(PX, PY, PW, PH, HudColor::PanelBg);
-		Text(TEXT("흐느적이들이 푸딩을 노린다!"), Canvas->ClipX * 0.5f, PY + S(28), 26, HudColor::Gold, EAlign::Center);
-		Text(TEXT("길옆 발판에 타워를 짓고 길 밖으로 날려 버려라"), Canvas->ClipX * 0.5f, PY + S(60), 20, HudColor::Cream, EAlign::Center);
+		Text(YJJLoc::Get(TEXT("Hud.IntroTitle")), Canvas->ClipX * 0.5f, PY + S(28), 26, HudColor::Gold, EAlign::Center);
+		Text(YJJLoc::Get(TEXT("Hud.IntroBody")), Canvas->ClipX * 0.5f, PY + S(60), 20, HudColor::Cream, EAlign::Center);
 	}
 }
 
@@ -430,7 +431,7 @@ void AYJJHUD::DrawFlick(const UYJJGame& Game)
 	Circle(X, Y, R, FLinearColor(0.12f, 0.15f, 0.26f, 1.f));
 	// 아래에서부터 차오르는 부채꼴 대신 크기로 표시
 	Circle(X, Y, R * FMath::Sqrt(Charge), Charge >= 1.f ? HudColor::Gold : YJJShapes::Hex(0x8B93A7));
-	Text(TEXT("딱밤"), X, Y, 22, Charge >= 1.f ? HudColor::Ink : HudColor::Cream, EAlign::Center, Charge >= 1.f ? 0.f : 2.f);
+	Text(YJJLoc::Get(TEXT("Hud.Flick")), X, Y, 22, Charge >= 1.f ? HudColor::Ink : HudColor::Cream, EAlign::Center, Charge >= 1.f ? 0.f : 2.f);
 }
 
 void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
@@ -462,7 +463,7 @@ void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 		if (bHeavy)
 		{
 			// 무거운 놈은 몸무게를 달고 다닌다 (잘 안 날아간다는 신호)
-			Text(FString::Printf(TEXT("%.0fkg"), Enemy->GetWeight()), Screen.X, Screen.Y - S(16), 17, YJJShapes::Hex(0xFFD6A5), EAlign::Center, 2.f);
+			Text(YJJLoc::Format(TEXT("Hud.Weight"), { FMath::RoundToInt(Enemy->GetWeight()) }), Screen.X, Screen.Y - S(16), 17, YJJShapes::Hex(0xFFD6A5), EAlign::Center, 2.f);
 		}
 	}
 
@@ -492,30 +493,29 @@ void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 			if (Game.HasTower(Pad))
 			{
 				const EYJJTowerType Type = Game.GetPadTower(Pad);
-				const FYJJTowerInfo& Info = UYJJGame::TowerInfo(Type);
+				const FString Name = UYJJGame::TowerName(Type);
 				const int32 Level = Game.GetPadLevel(Pad);
 				FString Extra;
 				if (Type == EYJJTowerType::Sling)
 				{
-					Extra = FString::Printf(TEXT(" (%.0fkg까지)"), UYJJGame::SlingLimitKg(Level));
+					Extra = YJJLoc::Format(TEXT("Hud.SlingLimit"), { FMath::RoundToInt(UYJJGame::SlingLimitKg(Level)) });
 				}
 				if (Level < YJJMaxTowerLevel)
 				{
 					const int32 Cost = UYJJGame::UpgradeCost(Type, Level);
-					Line = FString::Printf(TEXT("%s Lv%d%s  ·  클릭 강화 %d: %s  ·  우클릭 팔기 +%d"), Info.Name, Level, *Extra, Cost,
-						Level == 1 ? Info.Upgrade2 : Info.Upgrade3, Game.SellValue(Pad));
+					Line = YJJLoc::Format(TEXT("Hud.PadUpgrade"), { Name, Level, Extra, Cost, UYJJGame::UpgradeText(Type, Level), Game.SellValue(Pad) });
 					Color = Game.GetGold() >= Cost ? HudColor::Gold : HudColor::Cream;
 				}
 				else
 				{
-					Line = FString::Printf(TEXT("%s Lv%d (최대)%s  ·  우클릭 팔기 +%d"), Info.Name, Level, *Extra, Game.SellValue(Pad));
+					Line = YJJLoc::Format(TEXT("Hud.PadMax"), { Name, Level, Extra, Game.SellValue(Pad) });
 				}
 			}
 			else
 			{
-				const FYJJTowerInfo& Info = UYJJGame::TowerInfo(Commander.GetSelected());
+				const FYJJTowerRow& Info = UYJJGame::TowerInfo(Commander.GetSelected());
 				const bool bAfford = Game.GetGold() >= Info.Cost;
-				Line = FString::Printf(TEXT("%s 짓기  %d"), Info.Name, Info.Cost);
+				Line = YJJLoc::Format(TEXT("Hud.PadBuild"), { UYJJGame::TowerName(Commander.GetSelected()), Info.Cost });
 				Color = bAfford ? HudColor::Gold : HudColor::Red;
 			}
 			const FVector2D Size = Measure(Line, 22);
@@ -553,14 +553,14 @@ void AYJJHUD::DrawEnd(const UYJJGame& Game)
 	Panel(X - S(6), Y - S(6), W + S(12), H + S(12), WithAlpha(bWon ? HudColor::Gold : HudColor::Red, Appear), 26.f);
 	Panel(X, Y, W, H, WithAlpha(FLinearColor(0.06f, 0.08f, 0.16f, 0.97f), Appear), 22.f);
 	const float CX = Canvas->ClipX * 0.5f;
-	Text(bWon ? TEXT("푸딩을 지켰다!") : TEXT("푸딩이 다 뜯겼다..."), CX, Y + S(70), 54, WithAlpha(bWon ? HudColor::Gold : HudColor::Red, Appear), EAlign::Center, 4.f);
-	Text(FString::Printf(TEXT("웨이브 %d / %d"), Game.GetWave(), UYJJGame::WaveCount), CX, Y + S(132), 26, WithAlpha(HudColor::Dim, Appear), EAlign::Center);
+	Text(YJJLoc::Get(bWon ? TEXT("Hud.Won") : TEXT("Hud.Lost")), CX, Y + S(70), 54, WithAlpha(bWon ? HudColor::Gold : HudColor::Red, Appear), EAlign::Center, 4.f);
+	Text(YJJLoc::Format(TEXT("Hud.Wave"), { Game.GetWave(), UYJJGame::GetWaveCount() }), CX, Y + S(132), 26, WithAlpha(HudColor::Dim, Appear), EAlign::Center);
 
 	const FString Lines[4][2] = {
-		{ TEXT("쓰러뜨린 흐느적이"), FString::FromInt(Game.GetKills()) },
-		{ TEXT("그중 풍덩"), FString::FromInt(Game.GetDrowned()) },
-		{ TEXT("최고 떼죽음"), FString::Printf(TEXT("x%d"), Game.GetBestCombo()) },
-		{ TEXT("푸딩 뜯어 간 놈"), FString::FromInt(Game.GetLeaked()) } };
+		{ YJJLoc::Get(TEXT("Hud.StatKills")), FString::FromInt(Game.GetKills()) },
+		{ YJJLoc::Get(TEXT("Hud.StatDrowned")), FString::FromInt(Game.GetDrowned()) },
+		{ YJJLoc::Get(TEXT("Hud.StatCombo")), FString::Printf(TEXT("x%d"), Game.GetBestCombo()) },
+		{ YJJLoc::Get(TEXT("Hud.StatLeaked")), FString::FromInt(Game.GetLeaked()) } };
 	for (int32 i = 0; i < 4; ++i)
 	{
 		const float LineY = Y + S(190) + i * S(42);
@@ -573,5 +573,5 @@ void AYJJHUD::DrawEnd(const UYJJGame& Game)
 	const bool bHover = FBox2D(FVector2D(BX, BY), FVector2D(BX + BW, BY + BH)).IsInside(Mouse);
 	AddButton(BX, BY, BW, BH, ButtonRestart);
 	Panel(BX, BY, BW, BH, WithAlpha(bHover ? YJJShapes::Hex(0xFF7A45) : YJJShapes::Hex(0xF2542D), Appear), 16.f);
-	Text(TEXT("다시 하기 (R)"), CX, BY + BH * 0.5f, 30, WithAlpha(HudColor::Cream, Appear), EAlign::Center, 3.f);
+	Text(YJJLoc::Get(TEXT("Hud.Restart")), CX, BY + BH * 0.5f, 30, WithAlpha(HudColor::Cream, Appear), EAlign::Center, 3.f);
 }
