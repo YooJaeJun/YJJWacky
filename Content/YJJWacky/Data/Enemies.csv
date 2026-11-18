@@ -1,0 +1,7 @@
+﻿Name,NameKey,Scale,Health,Speed,Bounty,Bite,WeightKg,Color,Note
+Grunt,Enemy.Grunt,1.2,30,190,5,1,60,E5484D,기준 몬스터. 무게 60kg = 날아가는 거리 1배
+Runner,Enemy.Runner,0.9,16,310,4,1,35,F47B3E,빠르고 가볍다
+Brute,Enemy.Brute,1.7,110,135,14,2,180,B3262E,잘 안 날아간다 (1/3)
+Boss,Enemy.Boss,2.6,480,110,70,6,500,8E1F3A,거대. 새총 Lv3만 든다
+Tiny,Enemy.Tiny,0.72,9,250,2,1,15,FF7FA0,아주 가볍다. 바람에 훨훨
+Guard,Enemy.Guard,1.35,1,260,0,0,100,3B82F6,아군 몽둥이 병사 (체력·현상금 안 씀)

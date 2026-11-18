@@ -20,6 +20,23 @@ powershell -File Tools/Content/BuildContent.ps1
 전장·캐릭터·타워는 에셋이 아니라 코드가 게임 시작 때 조립한다.
 캐릭터에는 애니메이션이 없다. 전부 물리다 (`Source/YJJWacky/Physics/YJJWobbler.cpp`).
 
+## 데이터 테이블 (수치·글자)
+
+게임 수치와 화면 글자는 코드가 아니라 `Content/YJJWacky/Data/*.csv` 에 있다. 엑셀로 열어 고치면 된다 (UTF-8 BOM으로 저장).
+게임이 시작할 때 CSV를 엔진 DataTable로 읽는다. 게임 중 콘솔 `yjj.ReloadData` 를 치면 끄지 않고 다시 읽는다.
+
+| 파일 | 내용 | 행 이름 |
+| --- | --- | --- |
+| `Enemies.csv` | 몬스터: 크기, 체력, 속도, 현상금, 깨물기, **무게**, 색 | `EYJJWobblerKind` (Grunt, Runner, Brute, Boss, Tiny, Guard) |
+| `Towers.csv` | 타워: 값, 사거리, 강화 비용 비율, 단계별 `Power`/`Cooldown`/`ParamA`/`ParamB` (뜻은 `Note` 열) | `EYJJTowerType` (Punch, Cannon, Fan, Guard, Sling) |
+| `Waves.csv` | 웨이브마다 총 무게(`BudgetKg`), 시간, 몬스터별 몫·나오는 구간 | 아무 이름 (W01_Grunt ...) |
+| `Tuning.csv` | 경제·떼죽음·딱밤·타워 힘·흐느적이 물리 감각 | 이름 (`Game.StartGold`, `Wobbler.UprightStiffness` ...) |
+| `Localization.csv` | 화면 글자. 열 = `Key, ko, en, Note` | 키 (`Hud.Start` ...) |
+
+- 언어: 명령줄 `-yjjlang=en` 또는 콘솔 `yjj.Lang en`. 없으면 시스템 언어, 그것도 없으면 한국어. 언어를 늘리려면 열을 하나 붙인다 (예: `ja`).
+- 서식 자리는 `{0}`, `{1}` ... 빠진 키는 화면에 `[키]` 로 보이고 로그에 경고가 남는다.
+- 몸 치수·애니메이션 모양처럼 "그림"에 해당하는 값은 코드에 남겨 두었다.
+
 ## 실행·테스트
 
 ```
@@ -28,7 +45,7 @@ powershell -File Tools/RunGame.ps1 -Mode play    # 자동 플레이 검증 -> �
 powershell -File Tools/RunGame.ps1 -Mode play -Tests towers,upgrade -Waves 10   # 일부만 (walk, towers, upgrade, stress, waves)
 ```
 
-게임 중 콘솔(`~`): `yjj.AutoPlay`, `yjj.Gold 500`
+게임 중 콘솔(`~`): `yjj.AutoPlay`, `yjj.Gold 500`, `yjj.ReloadData`, `yjj.Lang en`
 
 ## 게임: 흐느적 디펜스
 
@@ -41,14 +58,14 @@ powershell -File Tools/RunGame.ps1 -Mode play -Tests towers,upgrade -Waves 10   
 | 대포 | 110 | 멀리서 진짜 물리 포탄을 쏜다. 굴러가며 쓰러뜨리고 한 번 터진다 | 큰 포탄, 넓게 | 세 발 동시 |
 | 선풍기 | 80 | 켜졌다 꺼졌다 하며 길 건너편으로 바람을 분다 | 강풍 | 회오리: 가벼운 놈을 공중으로 띄움 |
 | 몽둥이 병사 | 70 | 파란 흐느적이가 길목에서 빙글빙글 몽둥이를 돌린다. 돌고 나면 어지러워한다 | 큰 몽둥이 | 징 박힌 몽둥이 |
-| 새총 | 90 | 무게 한도 안의 적을 올가미로 낚아채, 고무줄을 당겼다가 앞선 무리에 탄알로 쏜다. 표적이 없으면 물로 던진다 | 70kg까지 | 200kg까지 (뚱보도) |
+| 새총 | 90 | 무게 한도(Lv1 70kg: 졸병까지) 안의 적을 올가미로 낚아채, 고무줄을 당겼다가 앞선 무리에 탄알로 쏜다. 표적이 없으면 물로 던진다. 너무 무거우면 "무거워!" | 200kg까지 (뚱보도) | 520kg까지 (대장도) |
 
 강화: 지은 타워를 좌클릭. 비용은 Lv2 = 값 x0.9, Lv3 = 값 x1.5. 판매가는 들인 돈의 60%. 발판 뒤 금색 구슬 수 = 단계.
 
 ## 레벨 디자인: 무게
 
 모든 수치의 중심은 몬스터 무게다. 맞고 날아가는 거리는 무게에 반비례(졸병 60kg 기준), 바람은 무게^0.8에 반비례.
-웨이브는 "총 무게 예산"과 몬스터별 몫으로 짠다 (`Source/YJJWacky/Core/YJJGame.cpp`의 `WaveTable`).
+웨이브는 "총 무게 예산"과 몬스터별 몫으로 짠다 (`Content/YJJWacky/Data/Waves.csv`).
 같은 무게라도 꼬마 떼(가볍고 많음)와 뚱보(무겁고 적음)는 전혀 다른 문제를 낸다.
 
 | 적 | 무게 | 특징 |
@@ -56,8 +73,8 @@ powershell -File Tools/RunGame.ps1 -Mode play -Tests towers,upgrade -Waves 10   
 | 꼬마 | 15kg | 아주 작고 가볍다. 바람에 훨훨, 새총 탄알 1순위 |
 | 날쌘돌이 | 35kg | 빠르고 가볍다 (멀리 날아간다) |
 | 졸병 | 60kg | 기준 |
-| 뚱보 | 180kg | 잘 안 날아간다. 강화한 타워나 새총 Lv3이 필요 |
-| 대장 | 500kg | 거대. 새총으로도 못 든다. 5·10 웨이브 |
+| 뚱보 | 180kg | 잘 안 날아간다. 강화한 타워나 새총 Lv2가 필요 |
+| 대장 | 500kg | 거대. 새총 Lv3만 든다. 5·10 웨이브 |
 
 | 웨이브 | 총 무게 | 구성 |
 | --- | --- | --- |

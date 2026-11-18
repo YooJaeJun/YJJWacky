@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Data/YJJData.h"
 #include "GameFramework/Actor.h"
 #include "YJJWobbler.generated.h"
 
@@ -9,38 +10,6 @@ class UPhysicsConstraintComponent;
 class UPrimitiveComponent;
 class USphereComponent;
 class UStaticMeshComponent;
-
-UENUM()
-enum class EYJJWobblerKind : uint8
-{
-	Grunt,		// 졸병
-	Runner,		// 날쌘돌이: 작고 빠르고 가볍다 (멀리 날아간다)
-	Brute,		// 뚱보: 크고 무겁고 느리다
-	Boss,		// 대장: 거대
-	Tiny,		// 꼬마: 아주 작고 가볍다 (새총 탄알 1순위)
-	Guard,		// 아군 몽둥이 병사
-};
-
-/**
- * 몬스터 수치. 레벨 디자인의 중심은 "무게"다.
- *  - 맞고 날아가는 거리는 무게에 반비례 (졸병 60kg 기준)
- *  - 새총은 강화 단계별로 들 수 있는 무게가 정해져 있다
- *  - 웨이브는 총 무게 예산으로 짠다
- */
-struct FYJJWobblerSpec
-{
-	const TCHAR* Name = TEXT("");
-	float Scale = 1.f;
-	float Health = 30.f;
-	float Speed = 200.f;
-	int32 Bounty = 8;
-	int32 Bite = 1;			// 푸딩에 닿았을 때 깎는 체력
-	float WeightKg = 60.f;
-	uint32 ColorHex = 0xE5484D;
-
-	/** 졸병(60kg) 대비 무게. 맞을 때 속도 변화를 이걸로 나눈다 */
-	float Heft() const { return WeightKg / 60.f; }
-};
 
 /**
  * 흐느적이: 몸통·머리·팔·다리 여섯 덩어리를 관절로 이은 물리 래그돌.
@@ -55,7 +24,8 @@ class YJJWACKY_API AYJJWobbler : public AActor
 public:
 	AYJJWobbler();
 
-	static const FYJJWobblerSpec& Spec(EYJJWobblerKind Kind);
+	/** Enemies.csv 한 줄 */
+	static const FYJJEnemyRow& Spec(EYJJWobblerKind Kind);
 
 	/** 스폰 직후 한 번. Lateral은 길 가운데에서 벗어나 걷는 거리(적), Post는 지키는 자리(병사), Level은 병사 강화 단계 */
 	void Setup(EYJJWobblerKind InKind, float InLateral, const FVector& InPost, int32 InLevel = 1);
