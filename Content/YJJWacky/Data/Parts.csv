@@ -1,0 +1,74 @@
+﻿Name,Model,Parent,Type,Shape,X,Y,Z,SX,SY,SZ,Pitch,Yaw,Roll,Color,Tag,Mirror,Repeat,RepeatAxis,RepeatStep,MinLevel,MaxLevel,Collide,Shadow,Skin,Opacity,Hidden,Loose,ScaleBy,Note
+Pip1,Tower.Common,Root,Mesh,Sphere,-112,-46,22,34,34,34,0,0,0,Gold,Pip,0,1,Yaw,0,1,3,0,1,0,0,0,0,,강화 단계 구슬
+Pip2,Tower.Common,Root,Mesh,Sphere,-112,0,22,34,34,34,0,0,0,Gold,Pip,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+Pip3,Tower.Common,Root,Mesh,Sphere,-112,46,22,34,34,34,0,0,0,Gold,Pip,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+PunchBase,Tower.Punch,Root,Mesh,Cube,0,0,30,170,170,60,0,0,0,64748B,,0,1,Yaw,0,1,3,1,1,0,0,0,0,,받침
+PunchBox,Tower.Punch,Root,Mesh,Cube,-10,0,112,140,140,104,0,0,0,2563EB,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+PunchBand,Tower.Punch,Root,Mesh,Cube,-10,0,112,146,146,22,0,0,0,FACC15,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+PunchRim,Tower.Punch,Root,Mesh,Cube,-10,0,168,146,146,10,0,0,0,1E3A8A,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+PunchStar,Tower.Punch,Root,Mesh,Sphere,62,0,112,10,46,46,0,0,0,FACC15,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,앞면 노란 별
+PunchHinge,Tower.Punch,Root,Pivot,Cube,-82,0,172,100,100,100,-115,0,0,,Hinge,0,1,Yaw,0,1,3,0,1,0,0,0,0,,뒤로 젖혀진 뚜껑
+PunchLid,Tower.Punch,Hinge,Mesh,Cube,73,0,0,146,146,12,0,0,0,FACC15,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+PunchArm,Tower.Punch,Root,Mesh,Cylinder,60,0,125,26,26,30,90,0,0,94A3B8,Arm,0,1,Yaw,0,1,3,0,1,0,0,0,0,,용수철 팔 (길이는 코드가)
+PunchGlove,Tower.Punch,Root,Pivot,Cube,70,0,125,100,100,100,0,0,0,,Glove,0,1,Yaw,0,1,3,0,1,0,0,0,0,,장갑 (위치는 코드가)
+GloveFist,Tower.Punch,Glove,Mesh,Sphere,0,0,0,135,120,125,0,0,0,EF4444,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+GloveThumb,Tower.Punch,Glove,Mesh,Sphere,8,-54,24,58,48,48,0,0,0,EF4444,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+GloveCuff,Tower.Punch,Glove,Mesh,Cylinder,-62,0,0,84,84,30,90,0,0,FFFFFF,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+CannonBase,Tower.Cannon,Root,Mesh,Cylinder,0,0,30,210,210,60,0,0,0,64748B,,0,1,Yaw,0,1,3,1,1,0,0,0,0,,
+CannonTurret,Tower.Cannon,Root,Pivot,Cube,0,0,60,100,100,100,0,0,0,,Turret,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+CannonCarriage,Tower.Cannon,Turret,Mesh,Cube,-10,0,30,140,110,50,0,0,0,9A6B3F,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+CannonWheel,Tower.Cannon,Turret,Mesh,Cylinder,-10,-68,34,96,96,18,0,0,90,6B4423,,1,1,Yaw,0,1,3,0,1,0,0,0,0,,
+CannonBarrel,Tower.Cannon,Turret,Pivot,Cube,0,0,78,100,100,100,0,0,0,,Barrel,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+CannonTube,Tower.Cannon,Barrel,Mesh,Cylinder,55,0,0,82,82,200,90,0,0,1F2937,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+CannonMuzzle,Tower.Cannon,Barrel,Mesh,Cylinder,152,0,0,98,98,26,90,0,0,111827,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+CannonBreech,Tower.Cannon,Barrel,Mesh,Sphere,-45,0,0,88,88,88,0,0,0,1F2937,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+FanBase,Tower.Fan,Root,Mesh,Cube,0,0,20,140,140,40,0,0,0,64748B,,0,1,Yaw,0,1,3,1,1,0,0,0,0,,
+FanPole,Tower.Fan,Root,Mesh,Cylinder,0,0,110,36,36,180,0,0,0,94A3B8,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+FanGuard,Tower.Fan,Root,Mesh,Cylinder,22,0,205,150,150,22,90,0,0,E2E8F0,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+FanMotor,Tower.Fan,Root,Mesh,Sphere,-12,0,205,96,96,96,0,0,0,3B82F6,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+FanRotor,Tower.Fan,Root,Pivot,Cube,48,0,205,100,100,100,0,0,0,,Rotor,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+FanBlade,Tower.Fan,Rotor,Mesh,Cube,0,82,0,8,150,60,0,0,18,FanBlade1,Blade,0,3,Roll,120,1,3,0,1,0,0,0,0,,날개 세 장 (색은 단계별 FanBlade1~3)
+FanHub,Tower.Fan,Rotor,Mesh,Sphere,6,0,0,52,52,52,0,0,0,FACC15,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+FanStreak,Tower.Fan,Root,Mesh,Cube,0,0,0,150,7,7,0,0,0,FFFFFF,Streak,0,9,Yaw,0,1,3,0,0,0,0.5,1,0,,바람 줄기 (위치는 코드가)
+GuardMat,Tower.Guard,Root,Mesh,Cylinder,0,0,6,220,220,12,0,0,0,1E40AF,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+GuardTent,Tower.Guard,Root,Mesh,Cone,-40,-50,70,170,170,140,0,0,0,F1F5F9,,0,1,Yaw,0,1,3,1,1,0,0,0,0,,
+GuardPole,Tower.Guard,Root,Mesh,Cylinder,50,60,150,14,14,300,0,0,0,9A6B3F,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+GuardFlag,Tower.Guard,Root,Mesh,Cube,50,108,255,6,90,60,0,0,0,3B82F6,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+GuardKnob,Tower.Guard,Root,Mesh,Sphere,50,60,306,28,28,28,0,0,0,FFD23F,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+SlingBase,Tower.Sling,Root,Mesh,Cube,0,0,30,160,160,60,0,0,0,8B5A2B,,0,1,Yaw,0,1,3,1,1,0,0,0,0,,
+SlingTop,Tower.Sling,Root,Mesh,Cube,0,0,63,166,166,8,0,0,0,6B4423,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+SlingTurret,Tower.Sling,Root,Pivot,Cube,0,0,0,100,100,100,0,0,0,,Turret,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+SlingTrunk,Tower.Sling,Turret,Mesh,Cylinder,0,0,120,34,34,120,0,0,0,9A6B3F,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+SlingProng,Tower.Sling,Turret,Mesh,Cylinder,0.0,-36.0,218.5,28,28,112.93,0,0,39.61,9A6B3F,,1,1,Yaw,0,1,3,0,1,0,0,0,0,,"Y자 갈래 (밑동 0,0,175 -> 끝 0,±72,262)"
+SlingProngTip,Tower.Sling,Turret,Mesh,Sphere,0,-72,268,34,34,34,0,0,0,EF4444,,1,1,Yaw,0,1,3,0,1,0,0,0,0,,
+SlingBand,Tower.Sling,Root,Mesh,Cylinder,0,0,0,10,10,100,0,0,0,F97316,Band,0,2,Yaw,0,1,3,0,0,0,0,0,1,,고무줄 (코드가 직접 걸친다)
+SlingRope,Tower.Sling,Root,Mesh,Cylinder,0,0,0,10,10,100,0,0,0,FDE68A,Rope,0,1,Yaw,0,1,3,0,0,0,0,1,1,,올가미
+SlingPouch,Tower.Sling,Root,Mesh,Sphere,0,0,0,50,50,30,0,0,0,5B3A1E,Pouch,0,1,Yaw,0,1,3,0,1,0,0,0,1,,주머니 (크기 비율은 코드 PouchScale 과 같게)
+TorsoSkin,Wobbler,Torso,Mesh,Sphere,0,0,0,66,60,100,0,0,0,Body,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,콩 모양 몸통
+HeadSkin,Wobbler,Head,Mesh,Sphere,0,0,0,58,58,56,0,0,0,Body,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,
+Eye,Wobbler,Head,Mesh,Sphere,19,-11.5,5,21,21,23,0,0,0,White,,1,1,Yaw,0,1,3,0,0,0,0,0,0,,왕눈이 흰자
+Pupil,Wobbler,Head,Mesh,Sphere,28.5,-11.5,5,8,10,10,0,0,0,Ink,Pupil,1,1,Yaw,0,1,3,0,0,0,0,0,0,,덜렁거리는 눈동자
+Mouth,Wobbler,Head,Mesh,Sphere,25,0,-12,8,15,9,0,0,0,Ink,,0,1,Yaw,0,1,3,0,0,0,0,0,0,,멍하게 벌린 입
+Arm0,Wobbler,Arm0,Mesh,Cylinder,0,0,0,16,16,60,0,0,0,Body,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,
+Hand0,Wobbler,Arm0,Mesh,Sphere,0,0,-32,23,23,23,0,0,0,Dark,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,
+Leg0,Wobbler,Leg0,Mesh,Cylinder,0,0,0,20,20,48,0,0,0,Body,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,
+Foot0,Wobbler,Leg0,Mesh,Sphere,7,0,-24,32,23,17,0,0,0,Dark,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,
+Arm1,Wobbler,Arm1,Mesh,Cylinder,0,0,0,16,16,60,0,0,0,Body,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,
+Hand1,Wobbler,Arm1,Mesh,Sphere,0,0,-32,23,23,23,0,0,0,Dark,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,
+Leg1,Wobbler,Leg1,Mesh,Cylinder,0,0,0,20,20,48,0,0,0,Body,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,
+Foot1,Wobbler,Leg1,Mesh,Sphere,7,0,-24,32,23,17,0,0,0,Dark,,0,1,Yaw,0,1,3,0,1,1,0,0,0,,
+TinyStem,Wobbler.Tiny,Head,Mesh,Cylinder,0,0,32,5,5,18,0,0,0,7BD15A,,0,1,Yaw,0,1,3,0,0,0,0,0,0,,머리 위 새싹
+TinyLeafL,Wobbler.Tiny,Head,Mesh,Sphere,0,-9,42,8,20,7,0,0,0,7BD15A,,0,1,Yaw,0,1,3,0,0,0,0,0,0,,
+TinyLeafR,Wobbler.Tiny,Head,Mesh,Sphere,0,9,44,8,20,7,0,0,0,7BD15A,,0,1,Yaw,0,1,3,0,0,0,0,0,0,,
+RunnerHat,Wobbler.Runner,Head,Mesh,Cone,0,0,38,30,30,40,0,0,0,FFD23F,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,고깔
+BruteHelmet,Wobbler.Brute,Head,Mesh,Sphere,0,0,13,66,66,42,0,0,0,8B929C,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,쇠 투구
+BruteKnob,Wobbler.Brute,Head,Mesh,Sphere,0,0,36,14,14,14,0,0,0,6B7280,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,
+BossCrown,Wobbler.Boss,Head,Mesh,Cylinder,0,0,27,46,46,14,0,0,0,Gold,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,왕관
+BossSpike,Wobbler.Boss,Head,Mesh,Cone,18,0,41,13,13,18,0,0,0,Gold,,0,5,Yaw,72,1,3,0,0,0,0,0,0,,
+GuardBucket,Wobbler.Guard,Head,Mesh,Cylinder,0,0,19,64,64,30,0,0,0,CBD5E1,,0,1,Yaw,0,1,3,0,1,0,0,0,0,,양동이 투구
+ClubHand,Wobbler.Guard,Arm1,Pivot,Cube,0,0,-32,100,100,100,0,0,0,,ClubHand,0,1,Yaw,0,1,3,0,1,0,0,0,0,Club,몽둥이 잡은 손 (Towers.csv Guard ParamA 배율)
+ClubStick,Wobbler.Guard,ClubHand,Mesh,Cylinder,0,0,-55,15,15,120,0,0,0,9A6B3F,,0,1,Yaw,0,1,1,0,1,0,0,0,0,,
+ClubHead,Wobbler.Guard,ClubHand,Mesh,Sphere,0,0,-112,40,40,46,0,0,0,9A6B3F,,0,1,Yaw,0,1,1,0,1,0,0,0,0,,
+ClubStickDark,Wobbler.Guard,ClubHand,Mesh,Cylinder,0,0,-55,15,15,120,0,0,0,7C4A21,,0,1,Yaw,0,2,3,0,1,0,0,0,0,,강화하면 짙은 나무
+ClubHeadDark,Wobbler.Guard,ClubHand,Mesh,Sphere,0,0,-112,40,40,46,0,0,0,7C4A21,,0,1,Yaw,0,2,3,0,1,0,0,0,0,,
+ClubSpike,Wobbler.Guard,ClubHand,Mesh,Cone,26,0,-112,14,14,18,0,0,-90,CBD5E1,,0,4,Yaw,90,3,3,0,0,0,0,0,0,,Lv3 쇠 징

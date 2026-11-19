@@ -1,0 +1,29 @@
+﻿Name,Asset,Volume,PitchMin,PitchMax,Note
+Music,BGM_Wacky,0.45,1,1,배경음 (반복)
+PunchHit,SFX_Punch,1,0.92,1.08,펀치가 맞았을 때
+PunchMiss,SFX_Punch,0.5,0.92,1.08,헛손질
+Cannon,SFX_Cannon,0.9,0.92,1.08,
+Boom,SFX_Boom,1,0.9,1.1,포탄 착탄
+BallSplash,SFX_Splash,0.6,0.8,0.8,포탄이 물에 빠짐
+FanOn,SFX_FanOn,0.6,1,1,
+Club,SFX_Bonk,0.9,0.9,1.2,몽둥이에 맞음
+Spin,SFX_Whoosh,0.7,1,1,몽둥이 회오리
+SlingLasso,SFX_Whoosh,0.6,1.4,1.4,새총 올가미
+SlingGrab,SFX_Grab,0.9,0.9,1.3,붙잡힌 놈 비명 (큰 놈일수록 낮게)
+SlingFire,SFX_Sling,1,0.95,1.1,
+SlingHeavy,SFX_Deny,0.5,0.8,0.8,무거워!
+Bowl,SFX_Bonk,0.9,0.8,1.1,새총 탄알에 맞음
+Flick,SFX_Bonk,1,1.1,1.4,딱밤
+Pop,SFX_Pop,0.8,0.85,1.25,쓰러짐 (큰 놈일수록 낮게)
+Splash,SFX_Splash,0.9,0.9,1.15,풍덩 (큰 놈일수록 낮게)
+Coin,SFX_Coin,0.5,0.95,1.15,
+Build,SFX_Build,1,1,1,
+Upgrade,SFX_Upgrade,1,1,1,
+Sell,SFX_Sell,1,1,1,
+Deny,SFX_Deny,1,1,1,골드 부족
+WaveStart,SFX_WaveStart,1,1,1,
+WaveClear,SFX_WaveClear,1,1,1,
+Chomp,SFX_Chomp,1,1,1,푸딩 뜯김
+Combo,SFX_Combo,1,1,1,떼죽음
+Win,SFX_Win,1,1,1,
+Lose,SFX_Lose,1,1,1,

@@ -17,6 +17,9 @@ class YJJWACKY_API AYJJCommanderPawn : public APawn
 public:
 	AYJJCommanderPawn();
 
+	/** 카메라 화각 (도) */
+	static constexpr float DefaultFieldOfView = 55.f;
+
 	UPROPERTY()
 	TObjectPtr<UCameraComponent> Camera;
 };
@@ -53,9 +56,13 @@ private:
 	EYJJTowerType Selected = EYJJTowerType::Punch;
 	int32 HoverPad = INDEX_NONE;
 
-	FVector Focus = FVector(-360.f, 60.f, 0.f);
-	float Yaw = -90.f;
-	float Pitch = -54.f;
-	float Distance = 5000.f;
-	float TargetDistance = 5000.f;
+	/** 한 프레임 실시간 최대 (멈췄다 풀릴 때 카메라가 튀지 않게) */
+	static constexpr float MaxRealDelta = 0.1f;
+
+	/** 시작 위치는 BeginPlay 에서 Tuning.csv Camera.Start* 로 */
+	FVector Focus = FVector::ZeroVector;
+	float Yaw = 0.f;
+	float Pitch = 0.f;
+	float Distance = 0.f;
+	float TargetDistance = 0.f;
 };

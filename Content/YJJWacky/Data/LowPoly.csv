@@ -1,0 +1,8 @@
+﻿Name,Model,Kind,X,Y,Z,A,B,C,Sides,TopColor,SideColor,Jitter,Seed,Yaw,Mirror,Note
+PuddingPlate,Pudding,Frustum,0,0,0,345,380,24,16,Plate,PlateSide,0,0,0,0,접시
+PuddingBody,Pudding,Frustum,0,0,24,285,215,215,16,Custard,Custard,0,0,0,0,커스터드
+PuddingCaramel,Pudding,Frustum,0,0,239,222,196,42,16,Caramel,Caramel,0,0,0,0,
+PuddingCherry,Pudding,Rock,0,0,310,44,0,0,0,Cherry,Cherry,0,7,0,0,체리 (A=반지름)
+PuddingStem,Pudding,Box,8,0,365,7,7,60,0,Stem,Stem,0,0,0,0,
+GatePillar,Gate,Frustum,-250,-250,0,70,50,400,6,Stone,Stone,0.06,113,0,1,적 진영 돌기둥 둘 (출발점 기준)
+GateBanner,Gate,Box,-250,0,370,40,580,110,0,Gate,Gate,0,0,0,0,빨간 현수막

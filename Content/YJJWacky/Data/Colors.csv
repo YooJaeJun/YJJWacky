@@ -1,0 +1,61 @@
+﻿Name,Hex,Alpha,Note
+Sand,EAD9A7,1,둑길 윗면
+Paving,DCC48A,1,모퉁이 광장
+Cliff,C4A77D,1,절벽 옆면
+Grass,9BCF5A,1,
+GrassDark,7FBF4D,1,
+Marker,F4EBD0,1,발판 자리 표시
+Stone,B9B4AE,1,
+Trunk,8B6B4A,1,
+Leaf,58A85A,1,
+LeafWarm,8DC455,1,
+SpawnGround,D9A98C,1,적이 나오는 땅
+Gate,E5484D,1,적 진영 현수막
+Sun,FFF7E7,1,햇빛
+Fog,B3D7F9,1,안개
+HighlightValid,FFFFFF,1,지을 수 있는 발판
+HighlightInvalid,FF897C,1,돈이 모자람
+Plate,FFFFFF,1,
+PlateSide,E5E7EB,1,
+Custard,FFD766,1,
+Caramel,9A5B21,1,
+Cherry,E11D48,1,
+Stem,4D7C0F,1,
+White,FFFFFF,1,
+Ink,15151A,1,눈동자·입
+Pale,B9B4AE,1,죽으면 이 색 쪽으로 바랜다
+CannonBall,1F2937,1,
+FanBlade1,F8FAFC,1,선풍기 날개 Lv1
+FanBlade2,93C5FD,1,Lv2
+FanBlade3,F87171,1,Lv3
+Gold,FFC83D,1,"강화 구슬, 대장 왕관"
+HudInk,353C55,1,글자 외곽선·테두리
+HudPanel,3F4B69,0.8,패널 바탕
+HudCream,FFFCF3,1,기본 글자
+HudDim,DDE2EF,1,흐린 글자
+HudGold,FFE77C,1,
+HudGoldDark,E1BC3F,1,
+HudRed,FF9999,1,
+HudCardSelected,596990,0.96,
+HudCardHover,556181,0.9,
+HudIconBack,FFFFFF,0.1,아이콘 뒤 원
+HudIconShade,3F4B69,0.6,못 사는 카드 아이콘 덮개
+HudFlickBack,616C8B,1,
+HudFlickCharge,8B93A7,1,딱밤 차는 중
+HudOverlay,273050,0.5,결과 화면 어둡게
+HudEndPanel,45506F,0.97,
+HudHeart,FF5C7A,1,
+HudBarFill,FFD766,1,푸딩 체력 막대
+HudWaveLeft,FF9A9A,1,남은 적
+HudHealth,FF5C5C,1,적 체력 막대
+HudWeight,FFD6A5,1,몸무게 표
+HudButton,F2542D,1,
+HudButtonHover,FF7A45,1,
+IconRed,EF4444,1,
+IconSteel,334155,1,
+IconWood,9A6B3F,1,
+IconFanFace,E2E8F0,1,
+IconBlade,60A5FA,1,
+IconBlue,3B82F6,1,
+IconOrange,F97316,1,
+IconPink,FF7FA0,1,

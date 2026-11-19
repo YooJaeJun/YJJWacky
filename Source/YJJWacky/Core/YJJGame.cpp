@@ -13,14 +13,6 @@
 #include "World/YJJShapes.h"
 #include "YJJWacky.h"
 
-namespace
-{
-	float Tune(const TCHAR* Name, float Fallback)
-	{
-		return YJJData::Tune(Name, Fallback);
-	}
-}
-
 UYJJGame* UYJJGame::Get(const UObject* WorldContext)
 {
 	const UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
@@ -29,7 +21,7 @@ UYJJGame* UYJJGame::Get(const UObject* WorldContext)
 
 int32 UYJJGame::GetMaxLives()
 {
-	return FMath::RoundToInt(Tune(TEXT("Game.Lives"), 20.f));
+	return FMath::RoundToInt(Tune(TEXT("Game.Lives")));
 }
 
 FString UYJJGame::TowerName(EYJJTowerType Type)
@@ -56,7 +48,8 @@ int32 UYJJGame::UpgradeCost(EYJJTowerType Type, int32 Level)
 		return 0;
 	}
 	const FYJJTowerRow& Row = TowerInfo(Type);
-	return FMath::RoundToInt(Row.Cost * (Level == 1 ? Row.Upgrade2CostRatio : Row.Upgrade3CostRatio) / 5.f) * 5;
+	const int32 Step = FMath::Max(1, YJJData::TuneInt(TEXT("Game.UpgradeCostStep")));
+	return FMath::RoundToInt(Row.Cost * (Level == 1 ? Row.Upgrade2CostRatio : Row.Upgrade3CostRatio) / Step) * Step;
 }
 
 float UYJJGame::SlingLimitKg(int32 Level)
@@ -67,13 +60,13 @@ float UYJJGame::SlingLimitKg(int32 Level)
 void UYJJGame::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	Gold = FMath::RoundToInt(Tune(TEXT("Game.StartGold"), 240.f));
+	Gold = FMath::RoundToInt(Tune(TEXT("Game.StartGold")));
 	Lives = GetMaxLives();
 }
 
 float UYJJGame::GetFlickCharge() const
 {
-	return 1.f - FMath::Clamp(FlickCooldown / FMath::Max(Tune(TEXT("Flick.Delay"), 1.2f), 0.01f), 0.f, 1.f);
+	return 1.f - FMath::Clamp(FlickCooldown / FMath::Max(Tune(TEXT("Flick.Delay")), 0.01f), 0.f, 1.f);
 }
 
 TArray<TPair<EYJJWobblerKind, int32>> UYJJGame::WaveCounts(int32 WaveNumber)
@@ -144,7 +137,7 @@ int32 UYJJGame::GetPadLevel(int32 Pad) const
 
 int32 UYJJGame::SellValue(int32 Pad) const
 {
-	return HasTower(Pad) ? FMath::RoundToInt(Towers[Pad]->GetInvested() * Tune(TEXT("Game.SellRatio"), 0.6f)) : 0;
+	return HasTower(Pad) ? FMath::RoundToInt(Towers[Pad]->GetInvested() * Tune(TEXT("Game.SellRatio"))) : 0;
 }
 
 bool UYJJGame::Upgrade(int32 Pad)
@@ -163,8 +156,8 @@ bool UYJJGame::Upgrade(int32 Pad)
 	const FVector Location = Tower->GetActorLocation();
 	if (Gold < Cost)
 	{
-		YJJAudio::Play(this, EYJJSound::Deny);
-		AddFloater(Location + FVector(0, 0, 200), YJJLoc::Get(TEXT("Float.NoGold")), YJJShapes::Hex(0xFF6B6B), 28.f);
+		YJJAudio::Play(this, TEXT("Deny"));
+		AddFloater(Location, YJJLoc::Get(TEXT("Float.NoGold")), TEXT("NoGold"));
 		return false;
 	}
 	Gold -= Cost;
@@ -174,14 +167,14 @@ bool UYJJGame::Upgrade(int32 Pad)
 		// 병사는 더 큰 몽둥이를 든 새 병사로 바꾼다
 		if (IsValid(Guards[Pad]))
 		{
-			AYJJEffects::Burst(this, Guards[Pad]->GetBodyLocation(), YJJShapes::Hex(0xFFFFFF), 8, 300.f, 50.f, 0.5f, -100.f, false, 0.4f);
+			AYJJEffects::Burst(this, TEXT("GuardPoof"), Guards[Pad]->GetBodyLocation());
 			Guards[Pad]->Destroy();
 		}
 		SpawnGuard(Pad, Level + 1);
 	}
-	AYJJEffects::Burst(this, Location + FVector(0, 0, 120), YJJShapes::Hex(0xFFD23F), 16, 520.f, 40.f, 0.7f, 300.f, true, 0.6f);
-	AddFloater(Location + FVector(0, 0, 330), YJJLoc::Format(TEXT("Float.Level"), { Level + 1 }), YJJShapes::Hex(0xFFD23F), 40.f);
-	YJJAudio::Play(this, EYJJSound::Upgrade);
+	AYJJEffects::Burst(this, TEXT("Upgrade"), Location);
+	AddFloater(Location, YJJLoc::Format(TEXT("Float.Level"), { Level + 1 }), TEXT("Level"));
+	YJJAudio::Play(this, TEXT("Upgrade"));
 	UE_LOG(LogYJJWacky, Display, TEXT("[Game] upgrade %s on pad %d -> Lv%d (gold %d)"), *TowerName(Tower->GetType()), Pad, Level + 1, Gold);
 	return true;
 }
@@ -196,8 +189,8 @@ bool UYJJGame::Build(int32 Pad, EYJJTowerType Type)
 	const FYJJTowerRow& Info = TowerInfo(Type);
 	if (Gold < Info.Cost)
 	{
-		YJJAudio::Play(this, EYJJSound::Deny);
-		AddFloater(Pads[Pad].Location + FVector(0, 0, 150), YJJLoc::Get(TEXT("Float.NoGold")), YJJShapes::Hex(0xFF6B6B), 28.f);
+		YJJAudio::Play(this, TEXT("Deny"));
+		AddFloater(Pads[Pad].Location, YJJLoc::Get(TEXT("Float.NoGold")), TEXT("NoGold"));
 		return false;
 	}
 	Gold -= Info.Cost;
@@ -214,8 +207,8 @@ bool UYJJGame::Build(int32 Pad, EYJJTowerType Type)
 	{
 		SpawnGuard(Pad, 1);
 	}
-	AYJJEffects::Burst(this, Pads[Pad].Location + FVector(0, 0, 40), YJJShapes::Hex(0xFFFFFF), 12, 420.f, 60.f, 0.5f, -100.f, false, 0.3f);
-	YJJAudio::Play(this, EYJJSound::Build);
+	AYJJEffects::Burst(this, TEXT("BuildPoof"), Pads[Pad].Location);
+	YJJAudio::Play(this, TEXT("Build"));
 	UE_LOG(LogYJJWacky, Display, TEXT("[Game] build %s on pad %d (gold %d)"), *TowerName(Type), Pad, Gold);
 	return true;
 }
@@ -224,11 +217,11 @@ void UYJJGame::SpawnGuard(int32 Pad, int32 Level)
 {
 	const YJJMap::FPad& Info = YJJMap::Pads()[Pad];
 	// 발판 앞 길 가장자리에 선다
-	const FVector Post = Info.PathPoint - Info.Facing * (YJJMap::PathWidth * 0.5f - 110.f);
+	const FVector Post = Info.PathPoint - Info.Facing * (YJJMap::PathWidth() * 0.5f - Tune(TEXT("Map.GuardInset")));
 	const float Scale = AYJJWobbler::Spec(EYJJWobblerKind::Guard).Scale;
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	AYJJWobbler* Guard = GetWorld()->SpawnActor<AYJJWobbler>(AYJJWobbler::StaticClass(), Post + FVector(0, 0, 92.f * Scale + 60.f), Info.Facing.Rotation(), Params);
+	AYJJWobbler* Guard = GetWorld()->SpawnActor<AYJJWobbler>(AYJJWobbler::StaticClass(), Post + FVector(0, 0, StandHeightPerScale * Scale + GuardSpawnLift), Info.Facing.Rotation(), Params);
 	Guard->Setup(EYJJWobblerKind::Guard, 0.f, Post, Level);
 	Guards[Pad] = Guard;
 }
@@ -246,13 +239,13 @@ bool UYJJGame::Sell(int32 Pad)
 	Towers[Pad] = nullptr;
 	if (Guards[Pad])
 	{
-		AYJJEffects::Burst(this, Guards[Pad]->GetBodyLocation(), YJJShapes::Hex(0xFFFFFF), 8, 300.f, 50.f, 0.5f, -100.f, false, 0.4f);
+		AYJJEffects::Burst(this, TEXT("GuardPoof"), Guards[Pad]->GetBodyLocation());
 		Guards[Pad]->Destroy();
 		Guards[Pad] = nullptr;
 	}
-	AYJJEffects::Burst(this, Location + FVector(0, 0, 60), YJJShapes::Hex(0xFFFFFF), 12, 380.f, 60.f, 0.5f, -100.f, false, 0.4f);
-	AddFloater(Location + FVector(0, 0, 160), YJJLoc::Format(TEXT("Float.Gold"), { Refund }), YJJShapes::Hex(0xFFD23F), 30.f);
-	YJJAudio::Play(this, EYJJSound::Sell);
+	AYJJEffects::Burst(this, TEXT("SellPoof"), Location);
+	AddFloater(Location, YJJLoc::Format(TEXT("Float.Gold"), { Refund }), TEXT("Refund"));
+	YJJAudio::Play(this, TEXT("Sell"));
 	return true;
 }
 
@@ -279,12 +272,12 @@ void UYJJGame::StartWave()
 		for (int32 i = 0; i < Count; ++i)
 		{
 			const float T = Count > 1 ? static_cast<float>(i) / (Count - 1) : 0.5f;
-			SpawnQueue.Add({ Def.Duration * FMath::Lerp(Share.From, Share.To, T) + FMath::FRandRange(0.f, 0.25f), Share.Kind });
+			SpawnQueue.Add({ Def.Duration * FMath::Lerp(Share.From, Share.To, T) + FMath::FRandRange(0.f, SpawnTimeJitter), Share.Kind });
 		}
 	}
 	SpawnQueue.Sort([](const FSpawn& A, const FSpawn& B) { return A.Time < B.Time; });
-	ShowBanner(YJJLoc::Format(TEXT("Banner.Wave"), { Wave }), YJJShapes::Hex(0xFFFFFF), 1.8f);
-	YJJAudio::Play(this, EYJJSound::WaveStart);
+	ShowBanner(YJJLoc::Format(TEXT("Banner.Wave"), { Wave }), TEXT("BannerWave"));
+	YJJAudio::Play(this, TEXT("WaveStart"));
 	UE_LOG(LogYJJWacky, Display, TEXT("[Game] wave %d start (%d enemies, %d kg)"), Wave, SpawnQueue.Num(), Def.BudgetKg);
 }
 
@@ -295,21 +288,21 @@ AYJJWobbler* UYJJGame::SpawnEnemy(EYJJWobblerKind Kind)
 	const FVector Dir = (Path[1] - Path[0]).GetSafeNormal();
 	const FVector Right(-Dir.Y, Dir.X, 0.f);
 	// 덩치가 클수록 길 가운데로
-	const float LaneWidth = FMath::Clamp(130.f - 130.f * (Info.Scale - 1.2f), 25.f, 150.f);
+	const float LaneWidth = FMath::Clamp(SpawnLaneWidth * (1.f - (Info.Scale - SpawnLaneReferenceScale)), SpawnLaneMin, SpawnLaneMax);
 	// 방금 나온 놈과 겹치면 서로 튕겨 나가므로, 몇 군데 찍어 보고 가장 한적한 자리를 고른다
 	float Lane = 0.f;
-	FVector Location = Path[0] + FVector(0, 0, 92.f * Info.Scale + 30.f);
+	FVector Location = Path[0] + FVector(0, 0, StandHeightPerScale * Info.Scale + SpawnLift);
 	float BestGap = TNumericLimits<float>::Lowest();
-	for (int32 Try = 0; Try < 12; ++Try)
+	for (int32 Try = 0; Try < SpawnTries; ++Try)
 	{
 		const float TryLane = FMath::FRandRange(-1.f, 1.f) * LaneWidth;
-		const FVector TryLocation = Path[0] + Dir * FMath::FRandRange(-260.f, 60.f) + Right * TryLane + FVector(0, 0, 92.f * Info.Scale + 30.f);
-		float Gap = 100000.f;
+		const FVector TryLocation = Path[0] + Dir * FMath::FRandRange(-SpawnBehind, SpawnAhead) + Right * TryLane + FVector(0, 0, StandHeightPerScale * Info.Scale + SpawnLift);
+		float Gap = TNumericLimits<float>::Max();
 		for (const AYJJWobbler* Other : Enemies)
 		{
 			if (Other)
 			{
-				Gap = FMath::Min(Gap, FVector::Dist2D(Other->GetBodyLocation(), TryLocation) - 45.f * (Other->GetScale() + Info.Scale));
+				Gap = FMath::Min(Gap, FVector::Dist2D(Other->GetBodyLocation(), TryLocation) - BodyRadiusPerScale * (Other->GetScale() + Info.Scale));
 			}
 		}
 		if (Gap > BestGap)
@@ -325,12 +318,12 @@ AYJJWobbler* UYJJGame::SpawnEnemy(EYJJWobblerKind Kind)
 		float Top = 0.f;
 		for (const AYJJWobbler* Other : Enemies)
 		{
-			if (Other && FVector::Dist2D(Other->GetBodyLocation(), Location) < 45.f * (Other->GetScale() + Info.Scale))
+			if (Other && FVector::Dist2D(Other->GetBodyLocation(), Location) < BodyRadiusPerScale * (Other->GetScale() + Info.Scale))
 			{
-				Top = FMath::Max(Top, Other->GetBodyLocation().Z + 95.f * Other->GetScale());
+				Top = FMath::Max(Top, Other->GetBodyLocation().Z + HeadTopPerScale * Other->GetScale());
 			}
 		}
-		Location.Z = FMath::Max(Location.Z, Top + 50.f * Info.Scale + 40.f);
+		Location.Z = FMath::Max(Location.Z, Top + DropClearancePerScale * Info.Scale + DropClearance);
 	}
 
 	FActorSpawnParameters Params;
@@ -365,27 +358,27 @@ void UYJJGame::OnWobblerDown(AYJJWobbler* Wobbler, bool bDrowned)
 	if (bDrowned)
 	{
 		Drowned++;
-		AddFloater(FVector(Location.X, Location.Y, YJJMap::WaterZ + 150.f), YJJLoc::Get(TEXT("Float.Splash")), YJJShapes::Hex(0xBFEFFF), 30.f);
+		AddFloater(FVector(Location.X, Location.Y, YJJMap::WaterZ()), YJJLoc::Get(TEXT("Float.Splash")), TEXT("Splash"));
 	}
-	AddFloater(Location + FVector(0, 0, 120.f), YJJLoc::Format(TEXT("Float.Gold"), { Info.Bounty }), YJJShapes::Hex(0xFFD23F), 24.f + Info.Scale * 4.f);
-	YJJAudio::Play(this, EYJJSound::Coin, FVector::ZeroVector, 0.5f, FMath::FRandRange(0.95f, 1.15f));
+	AddFloater(Location, YJJLoc::Format(TEXT("Float.Gold"), { Info.Bounty }), TEXT("Bounty"), Info.Scale);
+	YJJAudio::Play(this, TEXT("Coin"));
 
 	// 떼죽음: 짧은 시간에 여럿이 쓰러지면 슬로 모션
 	const double Now = GetWorld()->GetRealTimeSeconds();
 	RecentDowns.Add(Now);
-	const double Window = Tune(TEXT("Combo.Window"), 1.3f);
+	const double Window = Tune(TEXT("Combo.Window"));
 	RecentDowns.RemoveAll([Now, Window](double T) { return Now - T > Window; });
 	BestCombo = FMath::Max(BestCombo, RecentDowns.Num());
 	const bool bBossDown = Wobbler->GetKind() == EYJJWobblerKind::Boss;
-	if ((RecentDowns.Num() >= FMath::RoundToInt(Tune(TEXT("Combo.Count"), 5.f)) || bBossDown) && Now - LastComboTime > Tune(TEXT("Combo.Cooldown"), 4.f))
+	if ((RecentDowns.Num() >= FMath::RoundToInt(Tune(TEXT("Combo.Count"))) || bBossDown) && Now - LastComboTime > Tune(TEXT("Combo.Cooldown")))
 	{
 		LastComboTime = Now;
-		SlowMoLeft = Tune(TEXT("Combo.SlowMoTime"), 1.1f);
-		UGameplayStatics::SetGlobalTimeDilation(this, Tune(TEXT("Combo.SlowMo"), 0.3f));
-		const int32 Bonus = FMath::RoundToInt(bBossDown ? Tune(TEXT("Combo.BossBonus"), 25.f) : RecentDowns.Num() * Tune(TEXT("Combo.BonusPerKill"), 1.f));
+		SlowMoLeft = Tune(TEXT("Combo.SlowMoTime"));
+		UGameplayStatics::SetGlobalTimeDilation(this, Tune(TEXT("Combo.SlowMo")));
+		const int32 Bonus = FMath::RoundToInt(bBossDown ? Tune(TEXT("Combo.BossBonus")) : RecentDowns.Num() * Tune(TEXT("Combo.BonusPerKill")));
 		Gold += Bonus;
-		ShowBanner(bBossDown ? YJJLoc::Get(TEXT("Banner.Boss")) : YJJLoc::Format(TEXT("Banner.Combo"), { RecentDowns.Num() }), YJJShapes::Hex(0xFFD23F), 1.8f);
-		YJJAudio::Play(this, EYJJSound::Combo);
+		ShowBanner(bBossDown ? YJJLoc::Get(TEXT("Banner.Boss")) : YJJLoc::Format(TEXT("Banner.Combo"), { RecentDowns.Num() }), TEXT("BannerCombo"));
+		YJJAudio::Play(this, TEXT("Combo"));
 	}
 }
 
@@ -398,18 +391,18 @@ void UYJJGame::OnEnemyReachedBase(AYJJWobbler* Wobbler)
 	const int32 Bite = AYJJWobbler::Spec(Wobbler->GetKind()).Bite;
 	Leaked++;
 	const FVector Base = YJJMap::BaseLocation();
-	AYJJEffects::Burst(this, Wobbler->GetBodyLocation(), YJJShapes::Hex(0xFFE9A8), 10, 420.f, 40.f, 0.6f, 900.f, false, 0.7f);
-	YJJAudio::Play(this, EYJJSound::Chomp, Base);
+	AYJJEffects::Burst(this, TEXT("Chomp"), Wobbler->GetBodyLocation());
+	YJJAudio::Play(this, TEXT("Chomp"), Base);
 	if (AYJJArena* A = Arena())
 	{
-		A->WobblePudding(0.5f + 0.2f * Bite);
+		A->WobblePudding(PuddingWobbleBase + PuddingWobblePerBite * Bite);
 	}
 	if (Phase == EYJJPhase::Won || Phase == EYJJPhase::Lost)
 	{
 		return;
 	}
 	Lives = FMath::Max(0, Lives - Bite);
-	AddFloater(Base + FVector(0, 0, 420.f), YJJLoc::Format(TEXT("Float.Lives"), { Bite }), YJJShapes::Hex(0xFF6B6B), 40.f);
+	AddFloater(Base, YJJLoc::Format(TEXT("Float.Lives"), { Bite }), TEXT("Lives"));
 	if (Lives <= 0)
 	{
 		EndGame(false);
@@ -420,7 +413,7 @@ void UYJJGame::EndGame(bool bWon)
 {
 	Phase = bWon ? EYJJPhase::Won : EYJJPhase::Lost;
 	EndAge = 0.f;
-	YJJAudio::Play(this, bWon ? EYJJSound::Win : EYJJSound::Lose);
+	YJJAudio::Play(this, bWon ? TEXT("Win") : TEXT("Lose"));
 	UE_LOG(LogYJJWacky, Display, TEXT("[Game] %s wave=%d kills=%d drowned=%d leaked=%d lives=%d"), bWon ? TEXT("WON") : TEXT("LOST"), Wave, Kills, Drowned, Leaked, Lives);
 }
 
@@ -449,12 +442,12 @@ bool UYJJGame::Flick(AYJJWobbler* Enemy, const FVector& Direction)
 	{
 		return false;
 	}
-	FlickCooldown = Tune(TEXT("Flick.Delay"), 1.2f);
+	FlickCooldown = Tune(TEXT("Flick.Delay"));
 	const FVector Location = Enemy->GetBodyLocation();
-	Enemy->Knock(Direction.GetSafeNormal2D() * Tune(TEXT("Flick.Side"), 420.f) + FVector(0, 0, Tune(TEXT("Flick.Up"), 520.f)), 1.5f, Tune(TEXT("Flick.Damage"), 6.f));
-	AYJJEffects::Burst(this, Location, YJJShapes::Hex(0xFFE066), 7, 460.f, 24.f, 0.4f, 700.f, true, 0.6f);
-	AddFloater(Location + FVector(0, 0, 130.f), YJJLoc::Get(TEXT("Float.Flick")), YJJShapes::Hex(0xFFFFFF), 30.f);
-	YJJAudio::Play(this, EYJJSound::Bonk, Location, 1.f, FMath::FRandRange(1.1f, 1.4f));
+	Enemy->Knock(Direction.GetSafeNormal2D() * Tune(TEXT("Flick.Side")) + FVector(0, 0, Tune(TEXT("Flick.Up"))), Tune(TEXT("Flick.Limp")), Tune(TEXT("Flick.Damage")));
+	AYJJEffects::Burst(this, TEXT("Flick"), Location);
+	AddFloater(Location, YJJLoc::Get(TEXT("Float.Flick")), TEXT("Flick"));
+	YJJAudio::Play(this, TEXT("Flick"), Location);
 	return true;
 }
 
@@ -495,25 +488,28 @@ void UYJJGame::DebugReset(int32 InGold, bool bClear)
 
 // ============================================================ HUD
 
-void UYJJGame::AddFloater(const FVector& Location, const FString& Text, const FLinearColor& Color, float Size)
+void UYJJGame::AddFloater(const FVector& Location, const FString& Text, const TCHAR* Style, float Scale)
 {
-	if (Floaters.Num() > 60)
+	if (Floaters.Num() > YJJData::TuneInt(TEXT("Hud.MaxFloaters")))
 	{
 		Floaters.RemoveAt(0);
 	}
+	const FYJJTextStyleRow& Row = YJJData::TextStyle(Style);
 	FYJJFloater& Floater = Floaters.AddDefaulted_GetRef();
-	Floater.Location = Location;
+	Floater.Location = Location + FVector(0, 0, Row.OffsetZ);
 	Floater.Text = Text;
-	Floater.Color = Color;
-	Floater.Size = Size;
+	Floater.Color = Row.LinearColor();
+	Floater.Size = Row.Size + Row.SizePerScale * Scale;
 }
 
-void UYJJGame::ShowBanner(const FString& Text, const FLinearColor& Color, float Life)
+void UYJJGame::ShowBanner(const FString& Text, const TCHAR* Style)
 {
+	const FYJJTextStyleRow& Row = YJJData::TextStyle(Style);
 	BannerText = Text;
-	BannerColor = Color;
+	BannerColor = Row.LinearColor();
+	BannerSize = Row.Size;
 	BannerAge = 0.f;
-	BannerLife = Life;
+	BannerLife = Row.Life;
 }
 
 // ============================================================ 매 프레임
@@ -521,7 +517,7 @@ void UYJJGame::ShowBanner(const FString& Text, const FLinearColor& Color, float 
 void UYJJGame::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	const float RealDelta = FMath::Min(static_cast<float>(FApp::GetDeltaTime()), 0.1f);
+	const float RealDelta = FMath::Min(static_cast<float>(FApp::GetDeltaTime()), MaxRealDelta);
 
 	if (SlowMoLeft > 0.f)
 	{
@@ -535,7 +531,7 @@ void UYJJGame::Tick(float DeltaTime)
 	for (int32 i = Floaters.Num() - 1; i >= 0; --i)
 	{
 		Floaters[i].Age += RealDelta;
-		if (Floaters[i].Age > 1.2f)
+		if (Floaters[i].Age > Tune(TEXT("Hud.FloaterLife")))
 		{
 			Floaters.RemoveAt(i);
 		}
@@ -550,7 +546,7 @@ void UYJJGame::Tick(float DeltaTime)
 		if (Towers[Pad] && Towers[Pad]->GetType() == EYJJTowerType::Guard && !IsValid(Guards[Pad]))
 		{
 			GuardRespawn[Pad] += DeltaTime;
-			if (GuardRespawn[Pad] > Tune(TEXT("Game.GuardRespawn"), 3.f))
+			if (GuardRespawn[Pad] > Tune(TEXT("Game.GuardRespawn")))
 			{
 				GuardRespawn[Pad] = 0.f;
 				SpawnGuard(Pad, Towers[Pad]->GetLevel());
@@ -569,7 +565,7 @@ void UYJJGame::Tick(float DeltaTime)
 	}
 
 	WaveTime += DeltaTime;
-	while (SpawnIndex < SpawnQueue.Num() && SpawnQueue[SpawnIndex].Time <= WaveTime && Enemies.Num() < FMath::RoundToInt(Tune(TEXT("Game.MaxAlive"), 60.f)))
+	while (SpawnIndex < SpawnQueue.Num() && SpawnQueue[SpawnIndex].Time <= WaveTime && Enemies.Num() < FMath::RoundToInt(Tune(TEXT("Game.MaxAlive"))))
 	{
 		SpawnEnemy(SpawnQueue[SpawnIndex].Kind);
 		SpawnIndex++;
@@ -584,10 +580,10 @@ void UYJJGame::Tick(float DeltaTime)
 			return;
 		}
 		Phase = EYJJPhase::Build;
-		const int32 Bonus = FMath::RoundToInt(Tune(TEXT("Game.WaveBonusBase"), 20.f) + Wave * Tune(TEXT("Game.WaveBonusPerWave"), 4.f));
+		const int32 Bonus = FMath::RoundToInt(Tune(TEXT("Game.WaveBonusBase")) + Wave * Tune(TEXT("Game.WaveBonusPerWave")));
 		Gold += Bonus;
-		ShowBanner(YJJLoc::Format(TEXT("Banner.WaveClear"), { Wave, Bonus }), YJJShapes::Hex(0xB8F28A), 2.4f);
-		YJJAudio::Play(this, EYJJSound::WaveClear);
+		ShowBanner(YJJLoc::Format(TEXT("Banner.WaveClear"), { Wave, Bonus }), TEXT("BannerClear"));
+		YJJAudio::Play(this, TEXT("WaveClear"));
 		UE_LOG(LogYJJWacky, Display, TEXT("[Game] wave %d clear kills=%d drowned=%d leaked=%d lives=%d gold=%d"), Wave, Kills, Drowned, Leaked, Lives, Gold);
 	}
 }

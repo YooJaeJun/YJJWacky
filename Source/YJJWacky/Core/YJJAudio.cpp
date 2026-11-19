@@ -1,6 +1,7 @@
 #include "Core/YJJAudio.h"
 
 #include "Camera/PlayerCameraManager.h"
+#include "Data/YJJData.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
@@ -8,38 +9,9 @@
 #include "YJJAssetPaths.h"
 
 TMap<FString, TWeakObjectPtr<USoundBase>> YJJAudio::Cache;
-TMap<uint8, double> YJJAudio::LastPlayed;
+TMap<FName, double> YJJAudio::LastPlayed;
 
-const TCHAR* YJJAudio::SoundName(EYJJSound Sound)
-{
-	switch (Sound)
-	{
-	case EYJJSound::Punch: return TEXT("SFX_Punch");
-	case EYJJSound::Cannon: return TEXT("SFX_Cannon");
-	case EYJJSound::Boom: return TEXT("SFX_Boom");
-	case EYJJSound::Bonk: return TEXT("SFX_Bonk");
-	case EYJJSound::Whoosh: return TEXT("SFX_Whoosh");
-	case EYJJSound::Splash: return TEXT("SFX_Splash");
-	case EYJJSound::Pop: return TEXT("SFX_Pop");
-	case EYJJSound::Build: return TEXT("SFX_Build");
-	case EYJJSound::Sell: return TEXT("SFX_Sell");
-	case EYJJSound::Coin: return TEXT("SFX_Coin");
-	case EYJJSound::WaveStart: return TEXT("SFX_WaveStart");
-	case EYJJSound::WaveClear: return TEXT("SFX_WaveClear");
-	case EYJJSound::Chomp: return TEXT("SFX_Chomp");
-	case EYJJSound::Combo: return TEXT("SFX_Combo");
-	case EYJJSound::Win: return TEXT("SFX_Win");
-	case EYJJSound::Lose: return TEXT("SFX_Lose");
-	case EYJJSound::Deny: return TEXT("SFX_Deny");
-	case EYJJSound::FanOn: return TEXT("SFX_FanOn");
-	case EYJJSound::Upgrade: return TEXT("SFX_Upgrade");
-	case EYJJSound::Sling: return TEXT("SFX_Sling");
-	case EYJJSound::Grab: return TEXT("SFX_Grab");
-	}
-	return nullptr;
-}
-
-USoundBase* YJJAudio::LoadSound(const TCHAR* Name)
+USoundBase* YJJAudio::LoadSound(const FString& Name)
 {
 	if (TWeakObjectPtr<USoundBase>* Found = Cache.Find(Name))
 	{
@@ -48,7 +20,7 @@ USoundBase* YJJAudio::LoadSound(const TCHAR* Name)
 			return Found->Get();
 		}
 	}
-	const FString Path = FString::Printf(TEXT("%s/%s.%s"), YJJAssetPaths::AudioDir, Name, Name);
+	const FString Path = FString::Printf(TEXT("%s/%s.%s"), YJJAssetPaths::AudioDir, *Name, *Name);
 	USoundBase* Sound = LoadObject<USoundBase>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
 	if (Sound)
 	{
@@ -58,11 +30,12 @@ USoundBase* YJJAudio::LoadSound(const TCHAR* Name)
 	return Sound;
 }
 
-bool YJJAudio::Throttle(const UWorld* World, EYJJSound Sound)
+bool YJJAudio::Throttle(const UWorld* World, const TCHAR* Cue)
 {
+	// 같은 소리가 한 프레임에 수십 개 겹치면 귀가 찢어진다. 소리마다 최소 간격을 둔다
 	const double Now = World->GetRealTimeSeconds();
-	double& Last = LastPlayed.FindOrAdd(static_cast<uint8>(Sound), -1.0);
-	if (Now >= Last && Now - Last < MinInterval)
+	double& Last = LastPlayed.FindOrAdd(FName(Cue), NeverPlayed);
+	if (Now >= Last && Now - Last < YJJData::Tune(TEXT("Audio.MinInterval")))
 	{
 		return false;
 	}
@@ -70,12 +43,12 @@ bool YJJAudio::Throttle(const UWorld* World, EYJJSound Sound)
 	return true;
 }
 
-void YJJAudio::Play(const UObject* WorldContext, EYJJSound Sound, const FVector& Location, float Volume, float Pitch)
+void YJJAudio::Play(const UObject* WorldContext, const TCHAR* Cue, const FVector& Location, float PitchScale)
 {
 	const UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
-	const TCHAR* Name = SoundName(Sound);
-	USoundBase* Asset = Name ? LoadSound(Name) : nullptr;
-	if (!Asset || !World || !Throttle(World, Sound))
+	const FYJJSoundRow* Row = YJJData::Sound(Cue);
+	USoundBase* Asset = Row ? LoadSound(Row->Asset) : nullptr;
+	if (!Asset || !World || !Throttle(World, Cue))
 	{
 		return;
 	}
@@ -86,17 +59,20 @@ void YJJAudio::Play(const UObject* WorldContext, EYJJSound Sound, const FVector&
 		if (const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(WorldContext, 0))
 		{
 			const float Dist = FVector::Dist(Camera->GetCameraLocation(), Location);
-			Scale = FMath::Clamp(NearBoost - Dist / FadeDistance, MinDistanceScale, 1.f);
+			Scale = FMath::Clamp(YJJData::Tune(TEXT("Audio.NearBoost")) - Dist / YJJData::Tune(TEXT("Audio.FadeDistance")),
+				YJJData::Tune(TEXT("Audio.MinDistanceScale")), 1.f);
 		}
 	}
-	UGameplayStatics::PlaySound2D(WorldContext, Asset, Volume * Scale, Pitch);
+	const float Pitch = FMath::FRandRange(Row->PitchMin, Row->PitchMax) * PitchScale;
+	UGameplayStatics::PlaySound2D(WorldContext, Asset, Row->Volume * Scale, Pitch);
 }
 
 void YJJAudio::StartMusic(const UObject* WorldContext)
 {
-	if (USoundWave* Bgm = Cast<USoundWave>(LoadSound(MusicName)))
+	const FYJJSoundRow* Row = YJJData::Sound(MusicCue);
+	if (USoundWave* Bgm = Row ? Cast<USoundWave>(LoadSound(Row->Asset)) : nullptr)
 	{
 		Bgm->bLooping = true;
-		UGameplayStatics::SpawnSound2D(WorldContext, Bgm, MusicVolume);
+		UGameplayStatics::SpawnSound2D(WorldContext, Bgm, Row->Volume);
 	}
 }
