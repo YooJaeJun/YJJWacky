@@ -1,0 +1,15 @@
+﻿Name,Color,Size,SizePerScale,OffsetZ,Life,Note
+NoGold,FF6B6B,28,0,180,0,골드 부족!
+Level,FFD23F,40,0,330,0,Lv2!
+Refund,FFD23F,30,0,160,0,판 돈
+Bounty,FFD23F,20,4,120,0,현상금 (큰 놈일수록 크게)
+Splash,BFEFFF,30,0,150,0,풍덩! (물 높이 기준)
+Lives,FF6B6B,40,0,420,0,푸딩 체력 깎임
+Flick,FFFFFF,30,0,130,0,딱!
+Heavy,FFB4A2,28,0,330,0,무거워!
+Grab,FFFFFF,28,0,90,0,덥석!
+Fire,FFD23F,32,0,120,0,슝! / 저리 가!
+Strike,FFD23F,40,0,160,0,스트라이크!
+BannerWave,FFFFFF,76,0,0,1.8,웨이브 시작
+BannerClear,B8F28A,76,0,0,2.4,웨이브 막음
+BannerCombo,FFD23F,76,0,0,1.8,떼죽음·대장 격파

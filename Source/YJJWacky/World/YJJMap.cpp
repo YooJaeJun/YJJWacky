@@ -1,40 +1,71 @@
 #include "World/YJJMap.h"
 
-namespace
+#include "Data/YJJData.h"
+
+int32 YJJMap::BuiltGeneration = INDEX_NONE;
+TArray<FVector> YJJMap::PathPoints;
+TArray<FYJJPad> YJJMap::PadList;
+float YJJMap::Length = 0.f;
+
+float YJJMap::PathWidth() { return YJJData::Tune(TEXT("Map.PathWidth")); }
+float YJJMap::PadRadius() { return YJJData::Tune(TEXT("Map.PadRadius")); }
+float YJJMap::WaterZ() { return YJJData::Tune(TEXT("Map.WaterZ")); }
+float YJJMap::KillZ() { return YJJData::Tune(TEXT("Map.KillZ")); }
+float YJJMap::SpawnRadius() { return YJJData::Tune(TEXT("Map.SpawnRadius")); }
+float YJJMap::BaseRadius() { return YJJData::Tune(TEXT("Map.BaseRadius")); }
+
+void YJJMap::EnsureBuilt()
 {
-	struct FPadSpec
+	if (BuiltGeneration == YJJData::Generation())
 	{
-		int32 Segment;
-		float T;
-		float Side;	// +1 = 진행 방향 오른쪽
-	};
+		return;
+	}
+	BuiltGeneration = YJJData::Generation();
+
+	PathPoints = YJJData::PathPoints();
+	Length = 0.f;
+	for (int32 i = 0; i + 1 < PathPoints.Num(); ++i)
+	{
+		Length += FVector::Dist(PathPoints[i], PathPoints[i + 1]);
+	}
+
+	// 발판: 길 구간 Segment 의 T 지점에서 Side 쪽(+1 = 진행 방향 오른쪽)으로, 길 가장자리에 조금 겹쳐서
+	PadList.Reset();
+	const float Offset = PathWidth() * 0.5f + PadRadius() - YJJData::Tune(TEXT("Map.PadOverlap"));
+	for (const FYJJPadRow& Row : YJJData::PadRows())
+	{
+		if (!PathPoints.IsValidIndex(Row.Segment) || !PathPoints.IsValidIndex(Row.Segment + 1))
+		{
+			continue;
+		}
+		const FVector Dir = (PathPoints[Row.Segment + 1] - PathPoints[Row.Segment]).GetSafeNormal();
+		const FVector Right(-Dir.Y, Dir.X, 0.f);
+		FPad& Pad = PadList.AddDefaulted_GetRef();
+		Pad.PathPoint = FMath::Lerp(PathPoints[Row.Segment], PathPoints[Row.Segment + 1], Row.T);
+		Pad.Location = Pad.PathPoint + Right * Row.Side * Offset;
+		Pad.Facing = -Right * Row.Side;
+	}
 }
 
 const TArray<FVector>& YJJMap::Path()
 {
-	static const TArray<FVector> Points = {
-		FVector(-2400, -800, 0), FVector(-1000, -800, 0), FVector(-1000, 400, 0), FVector(200, 400, 0),
-		FVector(200, -800, 0), FVector(1400, -800, 0), FVector(1400, 350, 0) };
-	return Points;
+	EnsureBuilt();
+	return PathPoints;
 }
 
 float YJJMap::PathLength()
 {
-	static float Length = 0.f;
-	if (Length <= 0.f)
-	{
-		const TArray<FVector>& P = Path();
-		for (int32 i = 0; i + 1 < P.Num(); ++i)
-		{
-			Length += FVector::Dist(P[i], P[i + 1]);
-		}
-	}
+	EnsureBuilt();
 	return Length;
 }
 
 FVector YJJMap::PointAt(float Distance, FVector* OutDir)
 {
 	const TArray<FVector>& P = Path();
+	if (P.Num() < 2)
+	{
+		return P.Num() ? P[0] : FVector::ZeroVector;
+	}
 	Distance = FMath::Clamp(Distance, 0.f, PathLength());
 	for (int32 i = 0; i + 1 < P.Num(); ++i)
 	{
@@ -85,31 +116,14 @@ float YJJMap::Project(const FVector& Location, FVector* OutPoint, float* OutLate
 	return BestProgress;
 }
 
-const TArray<YJJMap::FPad>& YJJMap::Pads()
+const TArray<FYJJPad>& YJJMap::Pads()
 {
-	static TArray<FPad> Result;
-	if (Result.Num() == 0)
-	{
-		// 구불구불한 길의 안쪽·바깥쪽에 번갈아. 서로 겹치지 않게 T를 어긋나게 잡았다
-		const FPadSpec Specs[] = {
-			{ 0, 0.45f, 1 }, { 0, 0.75f, -1 }, { 1, 0.5f, 1 }, { 1, 0.3f, -1 }, { 2, 0.5f, 1 }, { 2, 0.5f, -1 },
-			{ 3, 0.7f, -1 }, { 3, 0.3f, 1 }, { 4, 0.5f, 1 }, { 4, 0.5f, -1 }, { 5, 0.7f, 1 }, { 5, 0.4f, -1 } };
-		const TArray<FVector>& P = Path();
-		for (const FPadSpec& S : Specs)
-		{
-			const FVector Dir = (P[S.Segment + 1] - P[S.Segment]).GetSafeNormal();
-			const FVector Right(-Dir.Y, Dir.X, 0.f);
-			FPad Pad;
-			Pad.PathPoint = FMath::Lerp(P[S.Segment], P[S.Segment + 1], S.T);
-			Pad.Location = Pad.PathPoint + Right * S.Side * (PathWidth * 0.5f + PadRadius - 30.f);
-			Pad.Facing = -Right * S.Side;
-			Result.Add(Pad);
-		}
-	}
-	return Result;
+	EnsureBuilt();
+	return PadList;
 }
 
 FVector YJJMap::BaseLocation()
 {
-	return Path().Last() + FVector(0, 440, 0);
+	const TArray<FVector>& P = Path();
+	return (P.Num() ? P.Last() : FVector::ZeroVector) + FVector(0.f, YJJData::Tune(TEXT("Map.BaseOffsetY")), 0.f);
 }

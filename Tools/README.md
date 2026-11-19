@@ -30,12 +30,22 @@ powershell -File Tools/Content/BuildContent.ps1
 | `Enemies.csv` | 몬스터: 크기, 체력, 속도, 현상금, 깨물기, **무게**, 색 | `EYJJWobblerKind` (Grunt, Runner, Brute, Boss, Tiny, Guard) |
 | `Towers.csv` | 타워: 값, 사거리, 강화 비용 비율, 단계별 `Power`/`Cooldown`/`ParamA`/`ParamB` (뜻은 `Note` 열) | `EYJJTowerType` (Punch, Cannon, Fan, Guard, Sling) |
 | `Waves.csv` | 웨이브마다 총 무게(`BudgetKg`), 시간, 몬스터별 몫·나오는 구간 | 아무 이름 (W01_Grunt ...) |
-| `Tuning.csv` | 경제·떼죽음·딱밤·타워 힘·흐느적이 물리 감각 | 이름 (`Game.StartGold`, `Wobbler.UprightStiffness` ...) |
+| `Tuning.csv` | 경제·떼죽음·딱밤·타워 힘, 흐느적이 몸·걸음새(`Body.*`, `Gait.*`, `Walk.*`), 땅·풍경·조명·카메라 | 이름 (`Game.StartGold` ...) |
+| `Sounds.csv` | 소리 큐 → 파일·볼륨·음높이 범위 | 큐 이름 (`PunchHit` ...) |
+| `Effects.csv` | 튀어나오는 조각 이펙트: 색·개수·속도·크기·수명·중력 | 이펙트 이름 (`Splash` ...) |
+| `TextStyles.csv` | 떠오르는 글자·배너 색과 크기 | 스타일 이름 (`Bounty` ...) |
+| `Colors.csv` | 색 팔레트 (다른 표의 색 칸에 이름을 써도 된다) | 색 이름 (`Sand`, `HudGold` ...) |
+| `Parts.csv` | 타워·흐느적이 모델 부품 (도형, 위치, 크기, 회전, 대칭·반복, 강화 단계) | 아무 이름 (`Model` 열로 묶음) |
+| `LowPoly.csv` | 각진 모델 (푸딩, 적 진영 문) | 아무 이름 |
+| `Scenery.csv` | 먼 섬·뒤뜰 나무 배치 | 아무 이름 |
+| `MapPath.csv` / `MapPads.csv` | 길 꼭짓점 / 타워 발판 자리 | 아무 이름 |
+| `HudLayout.csv` / `HudIcons.csv` | HUD 배치·글자 크기 / 카드 아이콘 조각 | 이름 / 아무 이름 |
 | `Localization.csv` | 화면 글자. 열 = `Key, ko, en, Note` | 키 (`Hud.Start` ...) |
 
-- 언어: 명령줄 `-yjjlang=en` 또는 콘솔 `yjj.Lang en`. 없으면 시스템 언어, 그것도 없으면 한국어. 언어를 늘리려면 열을 하나 붙인다 (예: `ja`).
+- 언어: 기본 한국어. 명령줄 `-yjjlang=en` 또는 콘솔 `yjj.Lang en` 으로 바꾼다. 언어를 늘리려면 열을 하나 붙인다 (예: `ja`).
 - 서식 자리는 `{0}`, `{1}` ... 빠진 키는 화면에 `[키]` 로 보이고 로그에 경고가 남는다.
-- 몸 치수·애니메이션 모양처럼 "그림"에 해당하는 값은 코드에 남겨 두었다.
+- 코드에는 숫자를 박지 않는다. 표에 없는 내부 기준값(애니메이션 박자 등)은 각 클래스 헤더의 이름 붙은 `static constexpr` 상수.
+- 표에 없는 이름을 쓰면 로그에 `[Data] ... 가 없다` 경고가 한 번 남는다.
 
 ## 실행·테스트
 

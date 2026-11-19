@@ -6,11 +6,13 @@
 #include "YJJHUD.generated.h"
 
 class AYJJCommander;
+class UFont;
 struct FCompositeFont;
 
 /**
  * 게임 HUD (Canvas, 위젯 에셋 없음).
  * 푸딩 체력·골드, 웨이브, 타워 카드, 출격 버튼, 딱밤 게이지, 떠오르는 글자, 결과 카드.
+ * 배치·글자 크기는 HudLayout.csv, 아이콘은 HudIcons.csv, 색은 Colors.csv (Hud*), 글자는 Localization.csv.
  */
 UCLASS()
 class YJJWACKY_API AYJJHUD : public AHUD
@@ -23,21 +25,36 @@ public:
 
 	virtual void DrawHUD() override;
 
-	/** 화면 좌표에 있는 버튼 번호 (0~3 타워 카드). 없으면 INDEX_NONE */
+	/** 화면 좌표에 있는 버튼 번호 (0~4 타워 카드). 없으면 INDEX_NONE */
 	int32 HitTest(const FVector2D& Screen) const;
 
 private:
 	enum class EAlign : uint8 { Left, Center, Right };
 
+	struct FButton
+	{
+		FBox2D Box;
+		int32 Id;
+	};
+
+	static float L(const TCHAR* Name) { return YJJData::Layout(Name); }
+	static FLinearColor C(const TCHAR* Name) { return YJJData::Color(Name); }
+	static FLinearColor WithAlpha(FLinearColor Color, float Alpha);
+	static const UFont* BaseFont();
+
+	/** 화면 높이에 맞춘 크기 */
 	float S(float V) const { return V * UIScale; }
-	void Text(const FString& Str, float X, float Y, float Size, const FLinearColor& Color, EAlign Align = EAlign::Left, float Outline = 2.f);
+	/** HudLayout.csv 값을 화면 크기에 맞춰서 */
+	float SL(const TCHAR* Name) const { return S(L(Name)); }
+
+	void Text(const FString& Str, float X, float Y, float Size, const FLinearColor& Color, EAlign Align = EAlign::Left, float Outline = OutlineDefault);
 	FVector2D Measure(const FString& Str, float Size);
-	void Panel(float X, float Y, float W, float H, const FLinearColor& Color, float Corner = 14.f);
+	void Panel(float X, float Y, float W, float H, const FLinearColor& Color, float Corner = PanelCornerDefault);
 	void Rect(float X, float Y, float W, float H, const FLinearColor& Color);
-	void Circle(float X, float Y, float R, const FLinearColor& Color, int32 Sides = 24);
+	void Circle(float X, float Y, float R, const FLinearColor& Color, int32 Sides = CircleSidesDefault);
 	void Heart(float X, float Y, float R, const FLinearColor& Color);
-	void Coin(float X, float Y, float R);
-	void TowerIcon(EYJJTowerType Type, float X, float Y, float R);
+	/** HudIcons.csv 의 Icon 을 (X, Y) 가운데 반지름 R 로 그린다 */
+	void DrawIcon(const FString& Icon, float X, float Y, float R);
 	void AddButton(float X, float Y, float W, float H, int32 Id);
 
 	void DrawStatus(const UYJJGame& Game);
@@ -50,15 +67,33 @@ private:
 	void DrawEnd(const UYJJGame& Game);
 
 	TSharedPtr<const FCompositeFont> GetGameFont();
+
+	// 그리기 기본값
+	static constexpr float OutlineDefault = 2.f;
+	static constexpr float PanelCornerDefault = 12.f;
+	static constexpr int32 CircleSidesDefault = 24;
+	/** 둥근 모서리 하나를 이만큼의 조각으로 */
+	static constexpr int32 CornerSteps = 5;
+	static constexpr float QuarterTurn = 90.f;
+	static constexpr int32 MinFontSize = 6;
+	/** 이보다 투명하면 그리지 않는다 */
+	static constexpr float MinVisibleAlpha = 0.01f;
+	/** 글자 크기를 못 잴 때 글자 하나 폭 어림 */
+	static constexpr float GlyphWidthGuess = 0.6f;
+	/** 마우스가 화면 밖일 때 쓰는 좌표 */
+	static constexpr float OffscreenMouse = -1000.f;
+	static constexpr const TCHAR* BaseFontPath = TEXT("/Engine/EngineFonts/Roboto.Roboto");
+
+	// 하트: 원 둘 + 아래 삼각형 (반지름 R 의 배수)
+	static constexpr float HeartLobeX = 0.5f;
+	static constexpr float HeartLobeY = 0.15f;
+	static constexpr float HeartLobeR = 0.56f;
+	static constexpr float HeartWide = 1.03f;
+	static constexpr float HeartTip = 1.05f;
+	static constexpr int32 HeartSides = 16;
+
 	TSharedPtr<const FCompositeFont> GameFont;
-
-	struct FButton
-	{
-		FBox2D Box;
-		int32 Id;
-	};
 	TArray<FButton> Buttons;
-
 	float UIScale = 1.f;
-	FVector2D Mouse = FVector2D(-1000.f, -1000.f);
+	FVector2D Mouse = FVector2D(OffscreenMouse, OffscreenMouse);
 };

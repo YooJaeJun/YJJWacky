@@ -1,10 +1,9 @@
 #include "Core/YJJAutoPilot.h"
 
 #include "Core/YJJGame.h"
-#include "Gameplay/YJJTower.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
-#include "HAL/IConsoleManager.h"
+#include "Gameplay/YJJTower.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
@@ -14,23 +13,46 @@
 #include "World/YJJMap.h"
 #include "YJJWacky.h"
 
-namespace
-{
-	FAutoConsoleCommandWithWorld PlayCommand(TEXT("yjj.AutoPlay"), TEXT("자동 플레이 검증"), FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
-	{
-		if (UYJJAutoPilot* Pilot = World ? World->GetSubsystem<UYJJAutoPilot>() : nullptr)
-		{
-			Pilot->StartAutoPlay();
-		}
-	}));
+FAutoConsoleCommandWithWorld UYJJAutoPilot::PlayCommand(TEXT("yjj.AutoPlay"), TEXT("자동 플레이 검증"),
+	FConsoleCommandWithWorldDelegate::CreateStatic(&UYJJAutoPilot::StartFromConsole));
+FAutoConsoleCommandWithWorldAndArgs UYJJAutoPilot::GoldCommand(TEXT("yjj.Gold"), TEXT("골드 추가"),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&UYJJAutoPilot::AddGoldFromConsole));
 
-	FAutoConsoleCommandWithWorldAndArgs GoldCommand(TEXT("yjj.Gold"), TEXT("골드 추가"), FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+const FYJJTowerTrial UYJJAutoPilot::Trials[] = {
+	{ EYJJTowerType::Punch, TEXT("Punch"), 12.f, 3 },
+	{ EYJJTowerType::Cannon, TEXT("Cannon"), 14.f, 2 },
+	{ EYJJTowerType::Fan, TEXT("Fan"), 13.f, 0 },
+	{ EYJJTowerType::Guard, TEXT("Guard"), 14.f, 2 },
+	// 1웨이브처럼 졸병만 와도 Lv1 새총이 60kg 졸병을 집어야 한다
+	{ EYJJTowerType::Sling, TEXT("Sling"), 16.f, 2 },
+};
+const int32 UYJJAutoPilot::TrialCount = UE_ARRAY_COUNT(UYJJAutoPilot::Trials);
+
+const TPair<int32, EYJJTowerType> UYJJAutoPilot::OpeningBuilds[] = {
+	{ 0, EYJJTowerType::Punch },
+	{ 3, EYJJTowerType::Guard },
+	{ 1, EYJJTowerType::Cannon },
+};
+const int32 UYJJAutoPilot::OpeningBuildCount = UE_ARRAY_COUNT(UYJJAutoPilot::OpeningBuilds);
+
+const EYJJTowerType UYJJAutoPilot::WishList[] = {
+	EYJJTowerType::Sling, EYJJTowerType::Fan, EYJJTowerType::Punch, EYJJTowerType::Cannon, EYJJTowerType::Guard, EYJJTowerType::Punch };
+const int32 UYJJAutoPilot::WishCount = UE_ARRAY_COUNT(UYJJAutoPilot::WishList);
+
+void UYJJAutoPilot::StartFromConsole(UWorld* World)
+{
+	if (UYJJAutoPilot* Pilot = World ? World->GetSubsystem<UYJJAutoPilot>() : nullptr)
 	{
-		if (UYJJGame* Game = UYJJGame::Get(World))
-		{
-			Game->DebugReset(Game->GetGold() + (Args.Num() > 0 ? FCString::Atoi(*Args[0]) : 500), false);
-		}
-	}));
+		Pilot->StartAutoPlay();
+	}
+}
+
+void UYJJAutoPilot::AddGoldFromConsole(const TArray<FString>& Args, UWorld* World)
+{
+	if (UYJJGame* Game = UYJJGame::Get(World))
+	{
+		Game->DebugReset(Game->GetGold() + (Args.Num() > 0 ? FCString::Atoi(*Args[0]) : DefaultGoldGift), false);
+	}
 }
 
 TStatId UYJJAutoPilot::GetStatId() const
@@ -73,62 +95,96 @@ void UYJJAutoPilot::View(const FVector& Focus, float Yaw, float Pitch, float Dis
 	}
 }
 
+void UYJJAutoPilot::ViewOverview()
+{
+	View(FVector(YJJData::Tune(TEXT("Camera.StartX")), YJJData::Tune(TEXT("Camera.StartY")), 0.f), YJJData::Tune(TEXT("Camera.StartYaw")),
+		YJJData::Tune(TEXT("Camera.StartPitch")), YJJData::Tune(TEXT("Camera.StartDistance")));
+}
+
 void UYJJAutoPilot::Check(bool bOk, const FString& What)
 {
 	(bOk ? Passed : Failed)++;
 	UE_LOG(LogYJJWacky, Display, TEXT("[AutoPilot] %s %s"), bOk ? TEXT("PASS") : TEXT("FAIL"), *What);
 }
 
+void UYJJAutoPilot::Spawn(EYJJWobblerKind Kind, int32 Count)
+{
+	if (UYJJGame* Game = UYJJGame::Get(GetWorld()))
+	{
+		for (int32 i = 0; i < Count; ++i)
+		{
+			Game->SpawnEnemy(Kind);
+		}
+	}
+}
+
 void UYJJAutoPilot::StartAutoPlay()
 {
 	Steps.Reset();
-	StepIndex = -1;
+	StepIndex = INDEX_NONE;
 	StepTimer = 0.f;
 	Passed = Failed = 0;
-	UYJJGame* Game = UYJJGame::Get(GetWorld());
-	const TArray<YJJMap::FPad>& Pads = YJJMap::Pads();
-	const FVector Start = YJJMap::Path()[0];
-
-	auto SpawnSquad = [Game](int32 Grunts, int32 Runners, int32 Brutes, int32 Bosses)
-	{
-		for (int32 i = 0; i < Grunts; ++i) { Game->SpawnEnemy(EYJJWobblerKind::Grunt); }
-		for (int32 i = 0; i < Runners; ++i) { Game->SpawnEnemy(EYJJWobblerKind::Runner); }
-		for (int32 i = 0; i < Brutes; ++i) { Game->SpawnEnemy(EYJJWobblerKind::Brute); }
-		for (int32 i = 0; i < Bosses; ++i) { Game->SpawnEnemy(EYJJWobblerKind::Boss); }
-	};
-	auto SpawnKind = [Game](EYJJWobblerKind Kind, int32 Count)
-	{
-		for (int32 i = 0; i < Count; ++i) { Game->SpawnEnemy(Kind); }
-	};
 
 	FString Tests;
 	FParse::Value(FCommandLine::Get(), TEXT("yjjtests="), Tests, false);	// 쉼표에서 끊지 않는다
 	auto Wants = [&Tests](const TCHAR* Name) { return Tests.IsEmpty() || Tests.Contains(Name); };
 
-	// 화면이 자리 잡을 때까지
-	Add(5.f, [] {});
-	Add(0.5f, [this] { Shot(TEXT("Play_00_Arena")); });
-
-	if (Wants(TEXT("walk")))
+	Add(SettleTime, [] {});
+	Add(ShotWait, [this] { Shot(TEXT("Play_00_Arena")); });
+	if (Wants(TEXT("walk")) && YJJMap::Path().Num() > 0)
 	{
-	// 1. 걷기: 종류별로 풀어놓고 서서 걷는지 본다
-	Add(0.2f, [this, SpawnSquad, Start] {
-		SpawnSquad(3, 1, 0, 1);
-		View(Start + FVector(350, 0, 80), -90.f, -22.f, 1300.f);
+		AddWalkTest(YJJMap::Path()[0]);
+	}
+	if (Wants(TEXT("towers")))
+	{
+		AddTowerTests();
+	}
+	if (Wants(TEXT("upgrade")))
+	{
+		AddUpgradeTests();
+	}
+	if (Wants(TEXT("stress")))
+	{
+		AddStressTest();
+	}
+	if (Wants(TEXT("waves")))
+	{
+		AddWaveTest();
+	}
+	Add(LastWait, [this] {
+		UE_LOG(LogYJJWacky, Display, TEXT("[AutoPilot] result passed=%d failed=%d avgfps=%.0f worstframe=%.0fms"),
+			Passed, Failed, FrameCount / FMath::Max(FrameTime, MinMeasureTime), WorstFrame * MillisecondsPerSecond);
 	});
-	Add(1.f, [SpawnSquad] { SpawnSquad(2, 1, 1, 0); });
-	Add(3.f, [this, Game] {
+	UE_LOG(LogYJJWacky, Display, TEXT("[AutoPilot] start (%d steps)"), Steps.Num());
+}
+
+void UYJJAutoPilot::AddWalkTest(const FVector& Start)
+{
+	// 종류별로 풀어놓고 서서 걷는지 본다
+	UYJJGame* Game = UYJJGame::Get(GetWorld());
+	Add(ShortWait, [this, Start] {
+		Spawn(EYJJWobblerKind::Grunt, WalkFirstGrunts);
+		Spawn(EYJJWobblerKind::Runner, WalkFirstRunners);
+		Spawn(EYJJWobblerKind::Boss, WalkFirstBosses);
+		View(Start + FVector(WalkViewAhead, 0, ViewLift), WalkViewYaw, WalkViewPitch, WalkViewDistance);
+	});
+	Add(WalkSecondBatch, [this] {
+		Spawn(EYJJWobblerKind::Grunt, WalkSecondGrunts);
+		Spawn(EYJJWobblerKind::Runner, WalkSecondRunners);
+		Spawn(EYJJWobblerKind::Brute, WalkSecondBrutes);
+	});
+	Add(WalkCheckWait, [this, Game] {
 		int32 Standing = 0;
 		for (const AYJJWobbler* Enemy : Game->GetEnemies())
 		{
 			Standing += (Enemy && Enemy->IsStanding()) ? 1 : 0;
 		}
-		Check(Game->GetEnemies().Num() == 9, FString::Printf(TEXT("9 enemies alive after spawn (%d)"), Game->GetEnemies().Num()));
-		Check(Standing >= 7, FString::Printf(TEXT("wobblers stand up (%d/9 standing)"), Standing));
+		Check(Game->GetEnemies().Num() == WalkTotal, FString::Printf(TEXT("%d enemies alive after spawn (%d)"), WalkTotal, Game->GetEnemies().Num()));
+		Check(Standing >= WalkMinStanding, FString::Printf(TEXT("wobblers stand up (%d/%d standing)"), Standing, WalkTotal));
 		Shot(TEXT("Play_01_Walk"));
 	});
-	Add(2.f, [this] { Shot(TEXT("Play_02_Walk")); });
-	Add(5.f, [this, Game] {
+	Add(WalkShotGap, [this] { Shot(TEXT("Play_02_Walk")); });
+	Add(WalkLaterWait, [this, Game] {
 		float Best = 0.f;
 		int32 Standing = 0;
 		for (const AYJJWobbler* Enemy : Game->GetEnemies())
@@ -139,162 +195,171 @@ void UYJJAutoPilot::StartAutoPlay()
 				Standing += Enemy->IsStanding() ? 1 : 0;
 			}
 		}
-		Check(Best > 1100.f, FString::Printf(TEXT("wobblers walk along the path (best %.0f cm in 10 s)"), Best));
-		Check(Standing >= 6, FString::Printf(TEXT("still standing while walking (%d standing, %d alive)"), Standing, Game->GetEnemies().Num()));
-		View(YJJMap::PointAt(Best - 200.f) + FVector(0, 0, 80), -60.f, -18.f, 1000.f);
+		Check(Best > WalkMinProgress, FString::Printf(TEXT("wobblers walk along the path (best %.0f cm)"), Best));
+		Check(Standing >= WalkMinStandingLater, FString::Printf(TEXT("still standing while walking (%d standing, %d alive)"), Standing, Game->GetEnemies().Num()));
+		View(YJJMap::PointAt(Best - WalkCloseBehind) + FVector(0, 0, ViewLift), WalkCloseYaw, WalkClosePitch, WalkCloseDistance);
 	});
-	Add(0.6f, [this] { Shot(TEXT("Play_03_WalkClose")); });
-	}
+	Add(WalkCloseShot, [this] { Shot(TEXT("Play_03_WalkClose")); });
+}
 
-	if (Wants(TEXT("towers")))
+void UYJJAutoPilot::AddTowerTests()
+{
+	// 발판 0(첫 구간 안쪽)에 하나 짓고 졸병 무리를 보낸다
+	UYJJGame* Game = UYJJGame::Get(GetWorld());
+	for (int32 t = 0; t < TrialCount; ++t)
 	{
-	// 2. 타워 종류별: 발판 0(첫 구간 안쪽)에 하나 짓고 졸병 8마리를 보낸다
-	struct FTrial { EYJJTowerType Type; const TCHAR* Name; float Watch; int32 MinKills; };
-	const FTrial Trials[] = {
-		{ EYJJTowerType::Punch, TEXT("Punch"), 12.f, 3 },
-		{ EYJJTowerType::Cannon, TEXT("Cannon"), 14.f, 2 },
-		{ EYJJTowerType::Fan, TEXT("Fan"), 13.f, 0 },
-		{ EYJJTowerType::Guard, TEXT("Guard"), 14.f, 2 },
-		{ EYJJTowerType::Sling, TEXT("Sling"), 16.f, 2 } };
-	for (const FTrial& Trial : Trials)
-	{
-		Add(0.3f, [this, Game, Trial, Pads, SpawnSquad, SpawnKind] {
-			Game->DebugReset(1000, true);
+		const FYJJTowerTrial Trial = Trials[t];
+		Add(SetupWait, [this, Game, Trial] {
+			Game->DebugReset(TestGold, true);
 			Check(Game->Build(0, Trial.Type), FString::Printf(TEXT("build %s"), Trial.Name));
-			if (Trial.Type == EYJJTowerType::Sling)
-			{
-				// 1웨이브처럼 졸병만 보낸다 (Lv1 새총이 60kg 졸병을 집어야 한다)
-				SpawnSquad(8, 0, 0, 0);
-			}
-			else
-			{
-				SpawnSquad(8, 0, 0, 0);
-			}
+			Spawn(EYJJWobblerKind::Grunt, TrialSquad);
 			MarkKills = Game->GetKills();
-			View(Pads[0].PathPoint + FVector(-100, 0, 80), -125.f, -26.f, 1500.f);
+			if (YJJMap::Pads().Num() > 0)
+			{
+				View(YJJMap::Pads()[0].PathPoint + FVector(-PadViewBack, 0, ViewLift), PadViewYaw, PadViewPitch, PadViewDistance);
+			}
 		});
-		Add(Trial.Watch * 0.4f, [this, Trial] { Shot(FString::Printf(TEXT("Play_1%s_a"), Trial.Name)); });
-		Add(Trial.Watch * 0.12f, [this, Trial] { Shot(FString::Printf(TEXT("Play_1%s_b"), Trial.Name)); });
-		Add(Trial.Watch * 0.12f, [this, Trial] { Shot(FString::Printf(TEXT("Play_1%s_c"), Trial.Name)); });
-		Add(Trial.Watch * 0.36f, [this, Game, Trial] {
+		Add(Trial.Watch * TrialShotA, [this, Trial] { Shot(FString::Printf(TEXT("Play_1%s_a"), Trial.Name)); });
+		Add(Trial.Watch * TrialShotB, [this, Trial] { Shot(FString::Printf(TEXT("Play_1%s_b"), Trial.Name)); });
+		Add(Trial.Watch * TrialShotC, [this, Trial] { Shot(FString::Printf(TEXT("Play_1%s_c"), Trial.Name)); });
+		Add(Trial.Watch * TrialCheck, [this, Game, Trial] {
 			const int32 Downs = Game->GetKills() - MarkKills;
 			const AYJJTower* Tower = Game->GetTower(0);
-			Check(Downs >= Trial.MinKills, FString::Printf(TEXT("%s tower downs %d of 8 (need %d), shots %d, drowned total %d"),
-				Trial.Name, Downs, Trial.MinKills, Tower ? Tower->GetShots() : -1, Game->GetDrowned()));
+			const int32 Shots = Tower ? Tower->GetShots() : INDEX_NONE;
+			Check(Downs >= Trial.MinDowns, FString::Printf(TEXT("%s tower downs %d of %d (need %d), shots %d, drowned total %d"),
+				Trial.Name, Downs, TrialSquad, Trial.MinDowns, Shots, Game->GetDrowned()));
 			if (Trial.Type == EYJJTowerType::Sling)
 			{
-				Check(Tower && Tower->GetShots() >= 2, FString::Printf(TEXT("sling grabbed and flung (%d shots)"), Tower ? Tower->GetShots() : -1));
+				Check(Shots >= SlingMinShots, FString::Printf(TEXT("sling grabbed and flung (%d shots)"), Shots));
 			}
 		});
 	}
-	}
+}
 
-	if (Wants(TEXT("upgrade")))
-	{
-		// 5. 강화: 펀치를 Lv3까지 올리고, 무거운 뚱보도 날리는지 본다. 새총 Lv3은 뚱보를 집는다
-		Add(0.3f, [this, Game, Pads, SpawnKind] {
-			Game->DebugReset(1000, true);
-			Game->Build(0, EYJJTowerType::Punch);
-			const int32 Before = Game->GetGold();
-			const bool bUp2 = Game->Upgrade(0);
-			const bool bUp3 = Game->Upgrade(0);
-			const bool bUp4 = Game->Upgrade(0);
-			const int32 Spent = Before - Game->GetGold();
-			const int32 Expected = UYJJGame::UpgradeCost(EYJJTowerType::Punch, 1) + UYJJGame::UpgradeCost(EYJJTowerType::Punch, 2);
-			Check(bUp2 && bUp3 && !bUp4 && Game->GetPadLevel(0) == 3 && Spent == Expected,
-				FString::Printf(TEXT("punch upgrades to Lv3 and stops (level %d, spent %d, expected %d)"), Game->GetPadLevel(0), Spent, Expected));
-			Check(Game->SellValue(0) == FMath::RoundToInt((UYJJGame::TowerInfo(EYJJTowerType::Punch).Cost + Expected) * YJJData::Tune(TEXT("Game.SellRatio"), 0.6f)),
-				FString::Printf(TEXT("sell value counts upgrades (%d)"), Game->SellValue(0)));
-			SpawnKind(EYJJWobblerKind::Brute, 3);
-			MarkKills = Game->GetKills();
-			View(Pads[0].PathPoint + FVector(-100, 0, 80), -125.f, -26.f, 1500.f);
-		});
-		Add(9.f, [this] { Shot(TEXT("Play_4PunchLv3")); });
-		Add(9.f, [this, Game] {
-			Check(Game->GetKills() - MarkKills >= 1, FString::Printf(TEXT("Lv3 punch downs brutes (%d of 3)"), Game->GetKills() - MarkKills));
-		});
-		Add(0.3f, [this, Game, Pads, SpawnKind] {
-			Game->DebugReset(1000, true);
-			Game->Build(0, EYJJTowerType::Sling);
-			Game->Upgrade(0);
-			Game->Upgrade(0);
-			SpawnKind(EYJJWobblerKind::Brute, 1);
-			SpawnKind(EYJJWobblerKind::Grunt, 5);
-			View(Pads[0].PathPoint + FVector(-100, 0, 80), -125.f, -26.f, 1700.f);
-		});
-		Add(7.f, [this] { Shot(TEXT("Play_4SlingLv3_a")); });
-		Add(1.5f, [this] { Shot(TEXT("Play_4SlingLv3_b")); });
-		Add(6.f, [this, Game] {
-			const AYJJTower* Tower = Game->GetTower(0);
-			Check(Tower && Tower->GetShots() >= 2, FString::Printf(TEXT("Lv3 sling throws (%d shots)"), Tower ? Tower->GetShots() : -1));
-		});
-	}
-
-	if (Wants(TEXT("stress")))
-	{
-	// 3. 부하: 60마리를 한꺼번에 풀어놓고 프레임을 잰다
-	Add(0.3f, [this, Game] {
-		Game->DebugReset(1000, true);
-		View(FVector(-360, 60, 0), -90.f, -54.f, 5000.f);
-		StressFrames = 0;
-		StressTime = 0.f;
+void UYJJAutoPilot::AddUpgradeTests()
+{
+	// 펀치를 Lv3까지 올리고, 무거운 뚱보도 날리는지 본다. 새총 Lv3은 뚱보를 집는다
+	UYJJGame* Game = UYJJGame::Get(GetWorld());
+	Add(SetupWait, [this, Game] {
+		Game->DebugReset(TestGold, true);
+		Game->Build(0, EYJJTowerType::Punch);
+		const int32 Before = Game->GetGold();
+		bool bAllUpgraded = true;
+		for (int32 Level = 1; Level < YJJMaxTowerLevel; ++Level)
+		{
+			bAllUpgraded = Game->Upgrade(0) && bAllUpgraded;
+		}
+		const bool bPastMax = Game->Upgrade(0);
+		const int32 Spent = Before - Game->GetGold();
+		int32 Expected = 0;
+		for (int32 Level = 1; Level < YJJMaxTowerLevel; ++Level)
+		{
+			Expected += UYJJGame::UpgradeCost(EYJJTowerType::Punch, Level);
+		}
+		Check(bAllUpgraded && !bPastMax && Game->GetPadLevel(0) == YJJMaxTowerLevel && Spent == Expected,
+			FString::Printf(TEXT("punch upgrades to Lv%d and stops (level %d, spent %d, expected %d)"), YJJMaxTowerLevel, Game->GetPadLevel(0), Spent, Expected));
+		const int32 Invested = UYJJGame::TowerInfo(EYJJTowerType::Punch).Cost + Expected;
+		Check(Game->SellValue(0) == FMath::RoundToInt(Invested * YJJData::Tune(TEXT("Game.SellRatio"))),
+			FString::Printf(TEXT("sell value counts upgrades (%d)"), Game->SellValue(0)));
+		Spawn(EYJJWobblerKind::Brute, UpgradeBrutes);
+		MarkKills = Game->GetKills();
+		View(YJJMap::Pads()[0].PathPoint + FVector(-PadViewBack, 0, ViewLift), PadViewYaw, PadViewPitch, PadViewDistance);
 	});
-	for (int32 Batch = 0; Batch < 6; ++Batch)
+	Add(UpgradeWatch, [this] { Shot(TEXT("Play_4PunchLv3")); });
+	Add(UpgradeWatch, [this, Game] {
+		Check(Game->GetKills() - MarkKills >= UpgradeMinDowns, FString::Printf(TEXT("Lv3 punch downs brutes (%d of %d)"), Game->GetKills() - MarkKills, UpgradeBrutes));
+	});
+	Add(SetupWait, [this, Game] {
+		Game->DebugReset(TestGold, true);
+		Game->Build(0, EYJJTowerType::Sling);
+		for (int32 Level = 1; Level < YJJMaxTowerLevel; ++Level)
+		{
+			Game->Upgrade(0);
+		}
+		Spawn(EYJJWobblerKind::Brute, SlingBrutes);
+		Spawn(EYJJWobblerKind::Grunt, SlingGrunts);
+		View(YJJMap::Pads()[0].PathPoint + FVector(-PadViewBack, 0, ViewLift), PadViewYaw, PadViewPitch, SlingViewDistance);
+	});
+	Add(SlingFirstShot, [this] { Shot(TEXT("Play_4SlingLv3_a")); });
+	Add(SlingShotGap, [this] { Shot(TEXT("Play_4SlingLv3_b")); });
+	Add(SlingCheckWait, [this, Game] {
+		const AYJJTower* Tower = Game->GetTower(0);
+		const int32 Shots = Tower ? Tower->GetShots() : INDEX_NONE;
+		Check(Shots >= SlingMinShots, FString::Printf(TEXT("Lv3 sling throws (%d shots)"), Shots));
+	});
+}
+
+void UYJJAutoPilot::AddStressTest()
+{
+	// 한꺼번에 많이 풀어놓고 프레임을 잰다
+	UYJJGame* Game = UYJJGame::Get(GetWorld());
+	Add(SetupWait, [this, Game] {
+		Game->DebugReset(TestGold, true);
+		ViewOverview();
+	});
+	for (int32 Batch = 0; Batch < StressBatches; ++Batch)
 	{
-		Add(0.6f, [SpawnSquad] { SpawnSquad(7, 2, 1, 0); });
+		Add(StressBatchGap, [this] {
+			Spawn(EYJJWobblerKind::Grunt, StressGrunts);
+			Spawn(EYJJWobblerKind::Runner, StressRunners);
+			Spawn(EYJJWobblerKind::Brute, StressBrutes);
+		});
 	}
-	Add(0.2f, [this] { StressFrames = 0; StressTime = 0.f; });
-	Add(6.f, [this, Game] {
-		const float Fps = StressFrames / FMath::Max(StressTime, 0.001f);
-		Check(Fps > 45.f, FString::Printf(TEXT("60 wobblers at once: %.0f fps (%d alive)"), Fps, Game->GetEnemies().Num()));
+	Add(ShortWait, [this] { StressFrames = 0; StressTime = 0.f; });
+	Add(StressMeasure, [this, Game] {
+		const float Fps = StressFrames / FMath::Max(StressTime, MinMeasureTime);
+		const int32 Spawned = StressBatches * (StressGrunts + StressRunners + StressBrutes);
+		Check(Fps > StressMinFps, FString::Printf(TEXT("%d wobblers at once: %.0f fps (%d alive)"), Spawned, Fps, Game->GetEnemies().Num()));
 		Shot(TEXT("Play_15_Crowd"));
 	});
-	}
+}
 
-	if (Wants(TEXT("waves")))
-	{
-	// 4. 실제 웨이브: 사람처럼 번 돈으로 짓는다 (기본 세 판, -yjjwaves=N 으로 지정)
-	int32 WaveGoal = 3;
+void UYJJAutoPilot::AddWaveTest()
+{
+	// 실제 웨이브: 사람처럼 번 돈으로 짓는다
+	UYJJGame* Game = UYJJGame::Get(GetWorld());
+	int32 WaveGoal = DefaultWaveGoal;
 	FParse::Value(FCommandLine::Get(), TEXT("yjjwaves="), WaveGoal);
 	WaveGoal = FMath::Clamp(WaveGoal, 1, UYJJGame::GetWaveCount());
-	Add(0.3f, [this, Game] {
-		Game->DebugReset(240, true);
-		View(FVector(-360, 60, 0), -90.f, -54.f, 5000.f);
-		Game->Build(0, EYJJTowerType::Punch);
-		Game->Build(3, EYJJTowerType::Guard);
-		Game->Build(1, EYJJTowerType::Cannon);
+	Add(SetupWait, [this, Game] {
+		Game->DebugReset(YJJData::TuneInt(TEXT("Game.StartGold")), true);
+		ViewOverview();
+		for (int32 i = 0; i < OpeningBuildCount; ++i)
+		{
+			Game->Build(OpeningBuilds[i].Key, OpeningBuilds[i].Value);
+		}
 		Game->StartWave();
 	});
 	for (int32 WaveNumber = 1; WaveNumber <= WaveGoal; ++WaveNumber)
 	{
-		Add(9.f, [this, WaveNumber] { Shot(FString::Printf(TEXT("Play_2Wave%d_a"), WaveNumber)); });
-		Add(9.f, [this, WaveNumber] { Shot(FString::Printf(TEXT("Play_2Wave%d_b"), WaveNumber)); });
-		// 웨이브가 끝날 때까지 (최대 150초)
-		for (int32 i = 0; i < 150; ++i)
+		Add(WaveShotGap, [this, WaveNumber] { Shot(FString::Printf(TEXT("Play_2Wave%d_a"), WaveNumber)); });
+		Add(WaveShotGap, [this, WaveNumber] { Shot(FString::Printf(TEXT("Play_2Wave%d_b"), WaveNumber)); });
+		// 웨이브가 끝날 때까지 (Action 이 없는 단계 = 웨이브가 끝나면 건너뛰는 1초 대기)
+		for (int32 i = 0; i < WaveMaxWait; ++i)
 		{
-			Add(1.f, [] {});
-			Steps.Last().Action = nullptr;
+			Add(1.f, nullptr);
 		}
-		Add(0.2f, [this, Game, WaveNumber] {
+		Add(ShortWait, [this, Game, WaveNumber] {
 			Check(Game->GetPhase() != EYJJPhase::Wave && Game->GetWave() == WaveNumber,
-				FString::Printf(TEXT("wave %d cleared (lives %d, kills %d, drowned %d, leaked %d, gold %d)"), WaveNumber, Game->GetLives(), Game->GetKills(), Game->GetDrowned(), Game->GetLeaked(), Game->GetGold()));
+				FString::Printf(TEXT("wave %d cleared (lives %d, kills %d, drowned %d, leaked %d, gold %d)"), WaveNumber, Game->GetLives(), Game->GetKills(),
+					Game->GetDrowned(), Game->GetLeaked(), Game->GetGold()));
 			// 번 돈으로 더 짓는다
-			const EYJJTowerType Wish[] = { EYJJTowerType::Sling, EYJJTowerType::Fan, EYJJTowerType::Punch, EYJJTowerType::Cannon, EYJJTowerType::Guard, EYJJTowerType::Punch };
-			int32 Pad = 2;
-			for (const EYJJTowerType Type : Wish)
+			const int32 PadCount = YJJMap::Pads().Num();
+			int32 Pad = WishFirstPad;
+			for (int32 w = 0; w < WishCount; ++w)
 			{
-				while (Pad < YJJMap::Pads().Num() && Game->HasTower(Pad)) { Pad++; }
-				if (Pad < YJJMap::Pads().Num() && Game->GetGold() >= UYJJGame::TowerInfo(Type).Cost)
+				while (Pad < PadCount && Game->HasTower(Pad)) { Pad++; }
+				if (Pad < PadCount && Game->GetGold() >= UYJJGame::TowerInfo(WishList[w]).Cost)
 				{
-					Game->Build(Pad, Type);
+					Game->Build(Pad, WishList[w]);
 				}
 			}
 			// 남은 돈으로 낮은 단계부터 강화
 			for (int32 Pass = 1; Pass < YJJMaxTowerLevel; ++Pass)
 			{
-				for (int32 i = 0; i < YJJMap::Pads().Num(); ++i)
+				for (int32 i = 0; i < PadCount; ++i)
 				{
-					if (Game->GetPadLevel(i) == Pass && Game->GetGold() >= UYJJGame::UpgradeCost(Game->GetPadTower(i), Pass) + 60)
+					if (Game->GetPadLevel(i) == Pass && Game->GetGold() >= UYJJGame::UpgradeCost(Game->GetPadTower(i), Pass) + UpgradeReserve)
 					{
 						Game->Upgrade(i);
 					}
@@ -303,16 +368,11 @@ void UYJJAutoPilot::StartAutoPlay()
 			Game->StartWave();
 		});
 	}
-	Add(4.f, [this] { Shot(TEXT("Play_3_End")); });
-	Add(0.1f, [this, Game, WaveGoal] {
-		Check(Game->GetLives() > 0, FString::Printf(TEXT("pudding survives %d waves (lives %d, kills %d, drowned %d, leaked %d)"), WaveGoal, Game->GetLives(), Game->GetKills(), Game->GetDrowned(), Game->GetLeaked()));
+	Add(EndShotWait, [this] { Shot(TEXT("Play_3_End")); });
+	Add(LastWait, [this, Game, WaveGoal] {
+		Check(Game->GetLives() > 0, FString::Printf(TEXT("pudding survives %d waves (lives %d, kills %d, drowned %d, leaked %d)"), WaveGoal, Game->GetLives(),
+			Game->GetKills(), Game->GetDrowned(), Game->GetLeaked()));
 	});
-	}
-
-	Add(0.1f, [this] {
-		UE_LOG(LogYJJWacky, Display, TEXT("[AutoPilot] result passed=%d failed=%d avgfps=%.0f worstframe=%.0fms"), Passed, Failed, FrameCount / FMath::Max(FrameTime, 0.001f), WorstFrame * 1000.f);
-	});
-	UE_LOG(LogYJJWacky, Display, TEXT("[AutoPilot] start (%d steps)"), Steps.Num());
 }
 
 void UYJJAutoPilot::Tick(float DeltaTime)

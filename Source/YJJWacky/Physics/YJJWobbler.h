@@ -6,15 +6,61 @@
 #include "YJJWobbler.generated.h"
 
 class UCapsuleComponent;
+class UPhysicalMaterial;
 class UPhysicsConstraintComponent;
 class UPrimitiveComponent;
-class USphereComponent;
 class UStaticMeshComponent;
+
+/**
+ * 흐느적이 몸·걸음새·맞는 느낌. 전부 Tuning.csv (Body.*, Wobbler.*, Gait.*, Walk.*, Guard.*, Sling.*).
+ * 매 프레임 이름으로 찾지 않도록 한 번 읽어 두고, yjj.ReloadData 로 다시 읽으면 갱신한다.
+ */
+struct FYJJWobblerTuning
+{
+	// 몸 치수 (크기 1 기준 cm, 몸통 가운데가 원점)
+	float TorsoRadius = 0.f, TorsoHalf = 0.f, HeadRadius = 0.f, ArmRadius = 0.f, ArmHalf = 0.f, LegRadius = 0.f, LegHalf = 0.f;
+	float HoverHeight = 0.f;
+	float ShoulderInset = 0.f, ShoulderDrop = 0.f, HipWidth = 0.f, HipRaise = 0.f, HeadSink = 0.f, NeckDrop = 0.f, LimbOverlap = 0.f;
+	// 몸 무게(kg)·관절 한계(도)·감쇠
+	float TorsoMass = 0.f, HeadMass = 0.f, ArmMass = 0.f, LegMass = 0.f;
+	float NeckSwing = 0.f, NeckTwist = 0.f, ShoulderSwing = 0.f, ShoulderTwist = 0.f, HipSwing = 0.f, HipTwist = 0.f;
+	float LinearDamping = 0.f, LimbAngularDamping = 0.f, CoreAngularDamping = 0.f, MaxSpin = 0.f;
+	float Friction = 0.f, Bounciness = 0.f;
+
+	// 버티는 힘·충격
+	float HoverStiffness = 0.f, HoverDamping = 0.f, UprightStiffness = 0.f, UprightDamping = 0.f, YawStiffness = 0.f;
+	float MoveGain = 0.f, MoveMaxAccel = 0.f, JoltThreshold = 0.f, StumbleThreshold = 0.f, ImpactDamage = 0.f, GetUpTime = 0.f, WindExponent = 0.f;
+	float GroundReach = 0.f, LiftMin = 0.f, LiftMax = 0.f, GetUpSpeed = 0.f, StuckTime = 0.f, AirTime = 0.f, FallLimp = 0.f, ImpactHeight = 0.f;
+	float SettleTime = 0.f, KnockWindow = 0.f, StumbleScale = 0.f, StumbleMin = 0.f, StumbleMax = 0.f, KnockSpin = 0.f, KnockSpinMax = 0.f;
+	float LimpWind = 0.f, BlownTime = 0.f, DeadTime = 0.f, DeadPale = 0.f, DarkShade = 0.f;
+
+	// 걸음새
+	float StepBase = 0.f, StepPerSpeed = 0.f, WalkSpeed = 0.f, WalkMin = 0.f, Sway = 0.f, SwayBlown = 0.f, Lean = 0.f, BlownFirm = 0.f;
+	float LegSwing = 0.f, LegStiffness = 0.f, LegDamping = 0.f, ArmStiffness = 0.f, ArmDamping = 0.f, ClubArmStiffness = 0.f, LooseArmStiffness = 0.f;
+	float HeadStiffness = 0.f, HeadDamping = 0.f, ArmReach = 0.f, ArmLift = 0.f, ArmFlail = 0.f, ArmFlailSpeed = 0.f, ArmPhase = 0.f, ArmSpread = 0.f;
+	float LooseArmSpread = 0.f, ClubPoseForward = 0.f, ClubPoseRight = 0.f, ClubPoseUp = 0.f, ClubSpinUp = 0.f;
+
+	// 길 따라 걷기
+	float Lookahead = 0.f, EdgeMargin = 0.f, EdgePerScale = 0.f, EdgeGain = 0.f, EdgeMax = 0.f, BaseReach = 0.f, OffPathMargin = 0.f;
+
+	// 병사
+	float PostGain = 0.f, Sight = 0.f, ClubInterval = 0.f, ClubRadius = 0.f, TargetRadius = 0.f, ClubLength = 0.f, ClubLimp = 0.f;
+	float SpinTrigger = 0.f, SpinTriggerTarget = 0.f, SpinSpeed = 0.f, SpinGain = 0.f;
+	float ClubSide = 0.f, ClubOut = 0.f, ClubUp = 0.f, ClubDamage = 0.f, Dizzy = 0.f;
+
+	// 새총에 붙잡힘 / 탄알
+	float HoldGain = 0.f, HoldMaxSpeed = 0.f, HoldSpinDamp = 0.f, KickSpeed = 0.f, KickStrength = 0.f, FlingSpin = 0.f, FlingLimp = 0.f;
+	float ProjectileTime = 0.f, BowlMinSpeed = 0.f, BowlReach = 0.f, BowlMaxSpeed = 0.f, BowlForward = 0.f, BowlSide = 0.f, BowlLimp = 0.f;
+	float BowlForce = 0.f, BowlUp = 0.f, BowlDamage = 0.f, StrikeCount = 0.f, ReleaseLimp = 0.f, HeldLimp = 0.f;
+
+	void Load();
+};
 
 /**
  * 흐느적이: 몸통·머리·팔·다리 여섯 덩어리를 관절로 이은 물리 래그돌.
  * 애니메이션이 없다. 몸통을 띄우는 스프링과 바로 세우는 토크, 다리를 흔드는 토크만으로 비틀비틀 걷는다.
  * 세게 맞으면 힘이 풀려(Limp) 그냥 래그돌이 되어 날아가고, 땅에 닿아 멈추면 다시 일어난다.
+ * 모양은 Parts.csv (Wobbler + Wobbler.<종류>), 수치는 Enemies.csv + Tuning.csv.
  */
 UCLASS()
 class YJJWACKY_API AYJJWobbler : public AActor
@@ -63,9 +109,14 @@ public:
 	float GetProgress() const { return Progress; }
 
 	/** 몽둥이에 연달아 맞지 않게 */
-	float LastClubHitTime = -100.f;
+	float LastClubHitTime = TNumericLimits<float>::Lowest();
 
 private:
+	/** 지금 Tuning.csv 값 (다시 읽었으면 갱신) */
+	static const FYJJWobblerTuning& Tun();
+	static UPhysicalMaterial* BodyMaterial();
+	static void ConfigureBody(UPrimitiveComponent* Body, float MassKg, bool bLimb);
+
 	UPrimitiveComponent* AddBody(bool bSphere, const FVector& LocalCenter, float Radius, float HalfHeight, float MassKg, bool bLimb);
 	void AddJoint(UPrimitiveComponent* Child, const FVector& LocalPivot, float SwingDeg, float TwistDeg);
 	void BuildLooks();
@@ -78,6 +129,21 @@ private:
 	void TickProjectile(float DeltaTime, const FVector& Location, const FVector& Velocity);
 	void SetAllVelocity(const FVector& Velocity);
 
+	static FYJJWobblerTuning CachedTuning;
+	static int32 CachedGeneration;
+	static TWeakObjectPtr<UPhysicalMaterial> CachedMaterial;
+	static constexpr const TCHAR* MaterialName = TEXT("YJJWobblerBody");
+
+	// 눈동자: 머리 움직임을 한 박자 늦게 따라가며 덜렁거린다 (모양)
+	static constexpr float PupilVelocityFollow = 0.016f;
+	static constexpr float PupilGravity = 2.5f;
+	static constexpr float PupilMaxOffset = 5.5f;
+	static constexpr float PupilCatchUp = 14.f;
+	/** 관절 꼬임 축(X)을 아래로 돌리는 각도 */
+	static constexpr float JointPitch = -90.f;
+	static constexpr int32 Limbs = 2;
+	static constexpr float Gravity = 980.f;
+
 	UPROPERTY()
 	TObjectPtr<UCapsuleComponent> Torso;
 
@@ -85,10 +151,10 @@ private:
 	TObjectPtr<UPrimitiveComponent> Head;
 
 	UPROPERTY()
-	TObjectPtr<UPrimitiveComponent> Arms[2];
+	TObjectPtr<UPrimitiveComponent> Arms[Limbs];
 
 	UPROPERTY()
-	TObjectPtr<UPrimitiveComponent> Legs[2];
+	TObjectPtr<UPrimitiveComponent> Legs[Limbs];
 
 	UPROPERTY()
 	TArray<TObjectPtr<UPhysicsConstraintComponent>> Joints;
@@ -98,13 +164,15 @@ private:
 	TArray<TObjectPtr<UStaticMeshComponent>> Skin;
 
 	UPROPERTY()
-	TObjectPtr<UStaticMeshComponent> Pupils[2];
+	TArray<TObjectPtr<UStaticMeshComponent>> Pupils;
+
+	TArray<FVector> PupilBase;
 
 	EYJJWobblerKind Kind = EYJJWobblerKind::Grunt;
 	float S = 1.f;				// 크기 배율
-	float TotalMass = 50.f;
-	float Health = 30.f;
-	float MaxHealth = 30.f;
+	float TotalMass = 0.f;
+	float Health = 0.f;
+	float MaxHealth = 0.f;
 	float Lateral = 0.f;
 	FVector Post = FVector::ZeroVector;
 	float Progress = 0.f;
@@ -119,12 +187,10 @@ private:
 	float Age = 0.f;
 	float Phase = 0.f;			// 걸음 박자
 	float Blown = 0.f;			// 바람에 휘청이는 시간
-	float KnockedTime = 100.f;	// 타워에 마지막으로 맞고 흐른 시간
-	bool bLaunchLogged = false;
+	float KnockedTime = TNumericLimits<float>::Max();	// 타워에 마지막으로 맞고 흐른 시간
 	FVector PrevVelocity = FVector::ZeroVector;
 	FVector PendingPush = FVector::ZeroVector;
 	FVector2D PupilOffset = FVector2D::ZeroVector;
-	FVector PupilBase[2];
 
 	// 새총
 	bool bHeld = false;

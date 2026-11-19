@@ -63,3 +63,5 @@ Banner.Wave,웨이브 {0},Wave {0},
 Banner.WaveClear,웨이브 {0} 막았다!  +{1},Wave {0} held!  +{1},
 Banner.Combo,떼죽음 x{0}!,Pile-up x{0}!,
 Banner.Boss,대장 격파!,Boss down!,
+Hud.StartKey,Space,Space,출격 버튼 아래 단축키
+Hud.StatComboValue,x{0},x{0},

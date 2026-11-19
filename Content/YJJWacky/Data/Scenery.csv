@@ -1,0 +1,14 @@
+﻿Name,Kind,X,Y,Radius,Height,Note
+Isle1,Isle,-2400,1300,560,60,먼 섬 (Height = 윗면 높이)
+Isle2,Isle,200,2000,520,120,
+Isle3,Isle,2900,-300,500,30,
+Isle4,Isle,2800,1600,470,150,
+Isle5,Isle,-500,-2200,540,90,
+Isle6,Isle,1800,-2300,480,40,
+Isle7,Isle,-3500,-2100,500,110,
+Isle8,Isle,-3800,200,440,60,
+Yard1,YardTree,-400,200,0,240,"푸딩 뒤뜰 나무 (푸딩 자리 기준, Height = 나무 높이)"
+Yard2,YardTree,390,230,0,240,
+Yard3,YardTree,-260,400,0,240,
+Yard4,YardTree,220,420,0,240,
+Yard5,YardTree,0,460,0,240,

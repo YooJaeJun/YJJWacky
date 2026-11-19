@@ -23,7 +23,7 @@ struct FYJJFloater
 	FVector Location = FVector::ZeroVector;
 	FString Text;
 	FLinearColor Color = FLinearColor::White;
-	float Size = 26.f;
+	float Size = 0.f;
 	float Age = 0.f;
 };
 
@@ -95,14 +95,15 @@ public:
 	const TArray<TObjectPtr<AYJJWobbler>>& GetGuards() const { return Guards; }
 	AYJJWobbler* FindNearestEnemy(const FVector& Location, float Radius) const;
 
-	// HUD
-	void AddFloater(const FVector& Location, const FString& Text, const FLinearColor& Color, float Size = 26.f);
+	// HUD. Style은 TextStyles.csv 의 행 이름, Scale은 크기 배율
+	void AddFloater(const FVector& Location, const FString& Text, const TCHAR* Style, float Scale = 1.f);
 	const TArray<FYJJFloater>& GetFloaters() const { return Floaters; }
-	void ShowBanner(const FString& Text, const FLinearColor& Color, float Life = 2.2f);
+	void ShowBanner(const FString& Text, const TCHAR* Style);
 	const FString& GetBannerText() const { return BannerText; }
 	FLinearColor GetBannerColor() const { return BannerColor; }
 	float GetBannerAge() const { return BannerAge; }
 	float GetBannerLife() const { return BannerLife; }
+	float GetBannerSize() const { return BannerSize; }
 	/** 게임이 끝난 뒤 흐른 시간 (실시간 초) */
 	float GetEndAge() const { return EndAge; }
 
@@ -115,6 +116,37 @@ private:
 		float Time;
 		EYJJWobblerKind Kind;
 	};
+
+	static float Tune(const TCHAR* Name) { return YJJData::Tune(Name); }
+
+	// 적이 나오는 자리 고르기 (모양에 맞춘 값)
+	/** 기준 크기(졸병 1.2배)일 때 줄 폭(cm). 덩치가 클수록 길 가운데로 */
+	static constexpr float SpawnLaneWidth = 130.f;
+	static constexpr float SpawnLaneReferenceScale = 1.2f;
+	static constexpr float SpawnLaneMin = 25.f;
+	static constexpr float SpawnLaneMax = 150.f;
+	/** 출발점 앞뒤로 흩어지는 범위(cm) */
+	static constexpr float SpawnBehind = 260.f;
+	static constexpr float SpawnAhead = 60.f;
+	/** 몇 군데 찍어 보고 가장 한적한 자리를 고른다 */
+	static constexpr int32 SpawnTries = 12;
+	/** 크기 1당 몸 반지름(cm) (겹침 판정) */
+	static constexpr float BodyRadiusPerScale = 45.f;
+	/** 크기 1당 머리 꼭대기 높이(cm) (위에서 떨어뜨릴 때) */
+	static constexpr float HeadTopPerScale = 95.f;
+	static constexpr float DropClearancePerScale = 50.f;
+	static constexpr float DropClearance = 40.f;
+	/** 크기 1당 서 있을 때 몸통 높이(cm) + 공중에서 시작하는 여유 */
+	static constexpr float StandHeightPerScale = 92.f;
+	static constexpr float SpawnLift = 30.f;
+	static constexpr float GuardSpawnLift = 60.f;
+	/** 같은 몫 안에서 나오는 시간을 조금씩 흩뜨린다(초) */
+	static constexpr float SpawnTimeJitter = 0.25f;
+	/** 푸딩 출렁임 = 기본 + 깨물기 1당 */
+	static constexpr float PuddingWobbleBase = 0.5f;
+	static constexpr float PuddingWobblePerBite = 0.2f;
+	/** 한 프레임 실시간 최대 (멈췄다 풀릴 때 튀지 않게) */
+	static constexpr float MaxRealDelta = 0.1f;
 
 	AYJJArena* Arena();
 	void SpawnGuard(int32 Pad, int32 Level);
@@ -159,5 +191,6 @@ private:
 	FLinearColor BannerColor = FLinearColor::White;
 	float BannerAge = 0.f;
 	float BannerLife = 0.f;
+	float BannerSize = 0.f;
 	float EndAge = 0.f;
 };

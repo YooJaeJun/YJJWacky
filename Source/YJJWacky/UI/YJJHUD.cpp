@@ -13,35 +13,17 @@
 #include "Rendering/SlateRenderer.h"
 #include "TextureResource.h"
 #include "World/YJJMap.h"
-#include "World/YJJShapes.h"
 #include "YJJAssetPaths.h"
 
-namespace
+const UFont* AYJJHUD::BaseFont()
 {
-	namespace HudColor
-	{
-		const FLinearColor Ink(0.035f, 0.045f, 0.09f, 1.f);
-		const FLinearColor PanelBg(0.05f, 0.07f, 0.14f, 0.8f);
-		const FLinearColor Cream(1.f, 0.97f, 0.9f, 1.f);
-		const FLinearColor Dim(0.72f, 0.76f, 0.86f, 1.f);
-		const FLinearColor Gold(1.f, 0.8f, 0.2f, 1.f);
-		const FLinearColor GoldDark(0.75f, 0.5f, 0.05f, 1.f);
-		const FLinearColor Red(1.f, 0.32f, 0.32f, 1.f);
-		const FLinearColor Green(0.55f, 0.9f, 0.4f, 1.f);
-		const FLinearColor Blue(0.25f, 0.55f, 1.f, 1.f);
-	}
+	return LoadObject<UFont>(nullptr, BaseFontPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+}
 
-	const UFont* BaseFont()
-	{
-		static const UFont* Font = LoadObject<UFont>(nullptr, TEXT("/Engine/EngineFonts/Roboto.Roboto"));
-		return Font;
-	}
-
-	FLinearColor WithAlpha(FLinearColor C, float A)
-	{
-		C.A *= A;
-		return C;
-	}
+FLinearColor AYJJHUD::WithAlpha(FLinearColor Color, float Alpha)
+{
+	Color.A *= Alpha;
+	return Color;
 }
 
 TSharedPtr<const FCompositeFont> AYJJHUD::GetGameFont()
@@ -72,17 +54,18 @@ TSharedPtr<const FCompositeFont> AYJJHUD::GetGameFont()
 void AYJJHUD::Text(const FString& Str, float X, float Y, float Size, const FLinearColor& Color, EAlign Align, float Outline)
 {
 	const UFont* Base = BaseFont();
-	if (!Base || Str.IsEmpty() || Color.A <= 0.01f)
+	if (!Base || Str.IsEmpty() || Color.A <= MinVisibleAlpha)
 	{
 		return;
 	}
-	const int32 FontSize = FMath::Max(FMath::RoundToInt(S(Size)), 6);
+	const int32 FontSize = FMath::Max(FMath::RoundToInt(S(Size)), MinFontSize);
 	const TSharedPtr<const FCompositeFont> Composite = GetGameFont();
 	FSlateFontInfo Font = Composite.IsValid() ? FSlateFontInfo(Composite, FontSize) : FSlateFontInfo(Base, FontSize);
 	if (Outline > 0.f)
 	{
+		const FLinearColor Ink = C(TEXT("HudInk"));
 		Font.OutlineSettings.OutlineSize = FMath::Max(FMath::RoundToInt(S(Outline)), 1);
-		Font.OutlineSettings.OutlineColor = FLinearColor(HudColor::Ink.R, HudColor::Ink.G, HudColor::Ink.B, Color.A);
+		Font.OutlineSettings.OutlineColor = FLinearColor(Ink.R, Ink.G, Ink.B, Color.A);
 	}
 
 	float DrawX = X;
@@ -101,27 +84,27 @@ FVector2D AYJJHUD::Measure(const FString& Str, float Size)
 {
 	const UFont* Base = BaseFont();
 	const TSharedPtr<const FCompositeFont> Composite = GetGameFont();
-	const int32 FontSize = FMath::Max(FMath::RoundToInt(S(Size)), 6);
+	const int32 FontSize = FMath::Max(FMath::RoundToInt(S(Size)), MinFontSize);
 	FSlateFontInfo Font = Composite.IsValid() ? FSlateFontInfo(Composite, FontSize) : FSlateFontInfo(Base, FontSize);
 	if (FSlateApplication::IsInitialized() && FSlateApplication::Get().GetRenderer())
 	{
 		return FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Str, Font);
 	}
-	return FVector2D(Str.Len() * S(Size) * 0.6f, S(Size));
+	return FVector2D(Str.Len() * S(Size) * GlyphWidthGuess, S(Size));
 }
 
 void AYJJHUD::Panel(float X, float Y, float W, float H, const FLinearColor& Color, float Corner)
 {
 	// 둥근 모서리 패널: 겹쳐 그리면 반투명이 진해지므로 테두리 다각형 하나를 부채꼴로 채운다
-	const float C = FMath::Min(S(Corner), FMath::Min(W, H) * 0.5f);
+	const float R = FMath::Min(S(Corner), FMath::Min(W, H) * 0.5f);
 	TArray<FVector2D> Outline;
-	const FVector2D Corners[4] = { FVector2D(X + W - C, Y + H - C), FVector2D(X + C, Y + H - C), FVector2D(X + C, Y + C), FVector2D(X + W - C, Y + C) };
-	for (int32 c = 0; c < 4; ++c)
+	const FVector2D Corners[] = { FVector2D(X + W - R, Y + H - R), FVector2D(X + R, Y + H - R), FVector2D(X + R, Y + R), FVector2D(X + W - R, Y + R) };
+	for (int32 c = 0; c < UE_ARRAY_COUNT(Corners); ++c)
 	{
-		for (int32 k = 0; k <= 5; ++k)
+		for (int32 k = 0; k <= CornerSteps; ++k)
 		{
-			const float A = (c * 90.f + k * 18.f) * PI / 180.f;
-			Outline.Add(Corners[c] + FVector2D(FMath::Cos(A), FMath::Sin(A)) * C);
+			const float A = FMath::DegreesToRadians(c * QuarterTurn + k * QuarterTurn / CornerSteps);
+			Outline.Add(Corners[c] + FVector2D(FMath::Cos(A), FMath::Sin(A)) * R);
 		}
 	}
 	const FVector2D Center(X + W * 0.5f, Y + H * 0.5f);
@@ -166,93 +149,48 @@ void AYJJHUD::Circle(float X, float Y, float R, const FLinearColor& Color, int32
 
 void AYJJHUD::Heart(float X, float Y, float R, const FLinearColor& Color)
 {
-	Circle(X - R * 0.5f, Y - R * 0.15f, R * 0.56f, Color, 16);
-	Circle(X + R * 0.5f, Y - R * 0.15f, R * 0.56f, Color, 16);
+	// 원 두 개 + 아래 삼각형
+	Circle(X - R * HeartLobeX, Y - R * HeartLobeY, R * HeartLobeR, Color, HeartSides);
+	Circle(X + R * HeartLobeX, Y - R * HeartLobeY, R * HeartLobeR, Color, HeartSides);
 	TArray<FCanvasUVTri> Tris;
 	FCanvasUVTri& T = Tris.AddDefaulted_GetRef();
-	T.V0_Pos = FVector2D(X - R * 1.03f, Y);
-	T.V1_Pos = FVector2D(X + R * 1.03f, Y);
-	T.V2_Pos = FVector2D(X, Y + R * 1.05f);
+	T.V0_Pos = FVector2D(X - R * HeartWide, Y);
+	T.V1_Pos = FVector2D(X + R * HeartWide, Y);
+	T.V2_Pos = FVector2D(X, Y + R * HeartTip);
 	T.V0_Color = T.V1_Color = T.V2_Color = Color;
 	FCanvasTriangleItem Item(Tris, GWhiteTexture);
 	Item.BlendMode = SE_BLEND_Translucent;
 	Canvas->DrawItem(Item);
 }
 
-void AYJJHUD::Coin(float X, float Y, float R)
+void AYJJHUD::DrawIcon(const FString& Icon, float X, float Y, float R)
 {
-	Circle(X, Y, R, HudColor::Ink);
-	Circle(X, Y, R * 0.84f, HudColor::Gold);
-	Circle(X, Y, R * 0.56f, HudColor::GoldDark);
-	Circle(X - R * 0.1f, Y - R * 0.1f, R * 0.44f, HudColor::Gold);
-}
-
-void AYJJHUD::TowerIcon(EYJJTowerType Type, float X, float Y, float R)
-{
-	const FLinearColor Ink = HudColor::Ink;
-	switch (Type)
+	// HudIcons.csv: 조각마다 원 또는 사각형 (위치·크기는 R 의 배수)
+	for (const FYJJIconRow* Piece : YJJData::Icon(Icon))
 	{
-	case EYJJTowerType::Punch:
-		// 권투 장갑
-		Rect(X - R * 1.0f, Y - R * 0.36f, R * 0.62f, R * 0.72f, Ink);
-		Rect(X - R * 0.92f, Y - R * 0.28f, R * 0.46f, R * 0.56f, FLinearColor::White);
-		Circle(X + R * 0.2f, Y, R * 0.78f, Ink);
-		Circle(X + R * 0.2f, Y, R * 0.68f, YJJShapes::Hex(0xEF4444));
-		Circle(X + R * 0.02f, Y - R * 0.62f, R * 0.34f, Ink);
-		Circle(X + R * 0.02f, Y - R * 0.62f, R * 0.25f, YJJShapes::Hex(0xEF4444));
-		break;
-	case EYJJTowerType::Cannon:
-		Rect(X - R * 0.5f, Y - R * 0.5f, R * 1.5f, R * 0.66f, Ink);
-		Rect(X - R * 0.42f, Y - R * 0.42f, R * 1.34f, R * 0.5f, YJJShapes::Hex(0x334155));
-		Circle(X - R * 0.4f, Y - R * 0.17f, R * 0.42f, Ink);
-		Circle(X - R * 0.4f, Y - R * 0.17f, R * 0.33f, YJJShapes::Hex(0x334155));
-		Circle(X - R * 0.15f, Y + R * 0.45f, R * 0.46f, Ink);
-		Circle(X - R * 0.15f, Y + R * 0.45f, R * 0.36f, YJJShapes::Hex(0x9A6B3F));
-		Circle(X - R * 0.15f, Y + R * 0.45f, R * 0.12f, Ink);
-		break;
-	case EYJJTowerType::Fan:
-		Circle(X, Y, R * 0.95f, Ink);
-		Circle(X, Y, R * 0.85f, YJJShapes::Hex(0xE2E8F0));
-		for (int32 i = 0; i < 3; ++i)
+		const FLinearColor Color = C(*Piece->Color);
+		const int32 Sides = Piece->Sides > 0 ? Piece->Sides : CircleSidesDefault;
+		const int32 Mirrors = Piece->Mirror ? 2 : 1;
+		for (int32 m = 0; m < Mirrors; ++m)
 		{
-			const float A = i * TWO_PI / 3.f - 0.5f;
-			Circle(X + FMath::Cos(A) * R * 0.42f, Y + FMath::Sin(A) * R * 0.42f, R * 0.32f, YJJShapes::Hex(0x60A5FA), 12);
+			const float Flip = m == 0 ? 1.f : -1.f;
+			for (int32 k = 0; k < FMath::Max(1, Piece->Repeat); ++k)
+			{
+				const float Angle = FMath::DegreesToRadians(Piece->OrbitStart + k * Piece->OrbitStep);
+				const float PX = X + R * (Piece->X * Flip + FMath::Cos(Angle) * Piece->Orbit);
+				const float PY = Y + R * (Piece->Y + FMath::Sin(Angle) * Piece->Orbit);
+				if (Piece->Shape.Equals(TEXT("Rect"), ESearchCase::IgnoreCase))
+				{
+					// 대칭이면 사각형은 왼쪽 위가 아니라 반대편 끝에서 시작한다
+					const float W = R * Piece->A;
+					Rect(m == 0 ? PX : PX - W, PY, W, R * Piece->B, Color);
+				}
+				else
+				{
+					Circle(PX, PY, R * Piece->A, Color, Sides);
+				}
+			}
 		}
-		Circle(X, Y, R * 0.2f, HudColor::Gold, 12);
-		break;
-	case EYJJTowerType::Guard:
-		// 몽둥이 든 파란 흐느적이
-		Rect(X + R * 0.42f, Y - R * 0.95f, R * 0.3f, R * 1.3f, Ink);
-		Rect(X + R * 0.48f, Y - R * 0.89f, R * 0.18f, R * 1.18f, YJJShapes::Hex(0x9A6B3F));
-		Circle(X - R * 0.15f, Y + R * 0.4f, R * 0.6f, Ink);
-		Circle(X - R * 0.15f, Y + R * 0.4f, R * 0.5f, YJJShapes::Hex(0x3B82F6));
-		Circle(X - R * 0.15f, Y - R * 0.38f, R * 0.5f, Ink);
-		Circle(X - R * 0.15f, Y - R * 0.38f, R * 0.41f, YJJShapes::Hex(0x3B82F6));
-		Circle(X - R * 0.3f, Y - R * 0.42f, R * 0.14f, FLinearColor::White, 10);
-		Circle(X + R * 0.02f, Y - R * 0.42f, R * 0.14f, FLinearColor::White, 10);
-		Circle(X - R * 0.27f, Y - R * 0.4f, R * 0.06f, Ink, 8);
-		Circle(X + R * 0.05f, Y - R * 0.4f, R * 0.06f, Ink, 8);
-		break;
-	case EYJJTowerType::Sling:
-	{
-		// Y자 가지 + 주머니 속 분홍 꼬마
-		const FLinearColor Wood = YJJShapes::Hex(0x9A6B3F);
-		Rect(X - R * 0.16f, Y - R * 0.05f, R * 0.32f, R * 1.0f, Ink);
-		Rect(X - R * 0.09f, Y + R * 0.0f, R * 0.18f, R * 0.9f, Wood);
-		for (const float Side : { -1.f, 1.f })
-		{
-			Circle(X + Side * R * 0.5f, Y - R * 0.55f, R * 0.2f, Ink, 12);
-			Circle(X + Side * R * 0.5f, Y - R * 0.55f, R * 0.13f, YJJShapes::Hex(0xEF4444), 12);
-			Circle(X + Side * R * 0.27f, Y - R * 0.25f, R * 0.2f, Ink, 10);
-			Circle(X + Side * R * 0.27f, Y - R * 0.25f, R * 0.13f, Wood, 10);
-		}
-		Rect(X - R * 0.5f, Y - R * 0.6f, R * 1.0f, R * 0.08f, YJJShapes::Hex(0xF97316));
-		Circle(X, Y - R * 0.7f, R * 0.3f, Ink, 14);
-		Circle(X, Y - R * 0.7f, R * 0.23f, YJJShapes::Hex(0xFF7FA0), 14);
-		Circle(X - R * 0.08f, Y - R * 0.74f, R * 0.07f, FLinearColor::White, 8);
-		Circle(X + R * 0.08f, Y - R * 0.74f, R * 0.07f, FLinearColor::White, 8);
-		break;
-	}
 	}
 }
 
@@ -282,7 +220,7 @@ void AYJJHUD::DrawHUD()
 	{
 		return;
 	}
-	UIScale = FMath::Clamp(Canvas->ClipY / 1080.f, 0.5f, 2.f);
+	UIScale = FMath::Clamp(Canvas->ClipY / L(TEXT("Hud.ReferenceHeight")), L(TEXT("Hud.ScaleMin")), L(TEXT("Hud.ScaleMax")));
 	Buttons.Reset();
 
 	const AYJJCommander* Commander = Cast<AYJJCommander>(GetOwningPlayerController());
@@ -292,7 +230,7 @@ void AYJJHUD::DrawHUD()
 		return;
 	}
 	float MouseX = 0.f, MouseY = 0.f;
-	Mouse = Commander->GetMousePosition(MouseX, MouseY) ? FVector2D(MouseX, MouseY) : FVector2D(-1000.f, -1000.f);
+	Mouse = Commander->GetMousePosition(MouseX, MouseY) ? FVector2D(MouseX, MouseY) : FVector2D(OffscreenMouse, OffscreenMouse);
 
 	DrawWorld(*Game, *Commander);
 	DrawStatus(*Game);
@@ -313,51 +251,59 @@ void AYJJHUD::DrawHUD()
 
 void AYJJHUD::DrawStatus(const UYJJGame& Game)
 {
-	const float X = S(24), Y = S(24), W = S(330), H = S(118);
-	Panel(X, Y, W, H, HudColor::PanelBg);
+	const float X = SL(TEXT("Status.X")), Y = SL(TEXT("Status.Y")), W = SL(TEXT("Status.W")), H = SL(TEXT("Status.H"));
+	Panel(X, Y, W, H, C(TEXT("HudPanel")));
 
 	// 푸딩 체력
 	const float Ratio = static_cast<float>(Game.GetLives()) / FMath::Max(1, UYJJGame::GetMaxLives());
-	Heart(X + S(38), Y + S(34), S(15), HudColor::Ink);
-	Heart(X + S(38), Y + S(34), S(12), Ratio > 0.35f ? YJJShapes::Hex(0xFF5C7A) : HudColor::Red);
-	Text(YJJLoc::Get(TEXT("Hud.Pudding")), X + S(66), Y + S(34), 24, HudColor::Cream);
-	const float BarX = X + S(128), BarW = S(128), BarH = S(18);
-	Panel(BarX - S(3), Y + S(34) - BarH * 0.5f - S(3), BarW + S(6), BarH + S(6), HudColor::Ink, 9.f);
-	Panel(BarX, Y + S(34) - BarH * 0.5f, FMath::Max(BarW * Ratio, S(4)), BarH, Ratio > 0.35f ? YJJShapes::Hex(0xFFD766) : HudColor::Red, 7.f);
-	Text(FString::Printf(TEXT("%d"), Game.GetLives()), X + W - S(20), Y + S(34), 26, HudColor::Cream, EAlign::Right);
+	const bool bLow = Ratio <= L(TEXT("Status.LowRatio"));
+	const float RowY = Y + SL(TEXT("Status.RowY"));
+	const float IconX = X + SL(TEXT("Status.IconX"));
+	Heart(IconX, RowY, SL(TEXT("Status.HeartOuter")), C(TEXT("HudInk")));
+	Heart(IconX, RowY, SL(TEXT("Status.HeartInner")), C(bLow ? TEXT("HudRed") : TEXT("HudHeart")));
+	Text(YJJLoc::Get(TEXT("Hud.Pudding")), X + SL(TEXT("Status.LabelX")), RowY, L(TEXT("Status.LabelSize")), C(TEXT("HudCream")));
+	const float BarX = X + SL(TEXT("Status.BarX")), BarW = SL(TEXT("Status.BarW")), BarH = SL(TEXT("Status.BarH")), Border = SL(TEXT("Status.BarBorder"));
+	Panel(BarX - Border, RowY - BarH * 0.5f - Border, BarW + Border * 2.f, BarH + Border * 2.f, C(TEXT("HudInk")), L(TEXT("Status.BarCorner")));
+	Panel(BarX, RowY - BarH * 0.5f, FMath::Max(BarW * Ratio, SL(TEXT("Status.BarMin"))), BarH, C(bLow ? TEXT("HudRed") : TEXT("HudBarFill")), L(TEXT("Status.BarFillCorner")));
+	Text(FString::FromInt(Game.GetLives()), X + W - SL(TEXT("Status.LivesRight")), RowY, L(TEXT("Status.LivesSize")), C(TEXT("HudCream")), EAlign::Right);
 
 	// 골드
-	Coin(X + S(38), Y + S(84), S(16));
-	Text(FString::Printf(TEXT("%d"), Game.GetGold()), X + S(66), Y + S(84), 32, HudColor::Gold);
+	const float GoldY = Y + SL(TEXT("Status.GoldY"));
+	DrawIcon(TEXT("Coin"), IconX, GoldY, SL(TEXT("Status.CoinR")));
+	Text(FString::FromInt(Game.GetGold()), X + SL(TEXT("Status.LabelX")), GoldY, L(TEXT("Status.GoldSize")), C(TEXT("HudGold")));
 }
 
 void AYJJHUD::DrawWave(const UYJJGame& Game)
 {
-	const float W = S(660), H = S(92);
-	const float X = Canvas->ClipX * 0.5f - W * 0.5f, Y = S(24);
-	Panel(X, Y, W, H, HudColor::PanelBg);
+	const float W = SL(TEXT("Wave.W")), H = SL(TEXT("Wave.H"));
+	const float CX = Canvas->ClipX * 0.5f;
+	const float X = CX - W * 0.5f, Y = SL(TEXT("Wave.Y"));
+	Panel(X, Y, W, H, C(TEXT("HudPanel")));
 	const int32 Shown = FMath::Clamp(Game.GetPhase() == EYJJPhase::Build ? Game.GetWave() + 1 : Game.GetWave(), 1, FMath::Max(1, UYJJGame::GetWaveCount()));
-	Text(YJJLoc::Format(TEXT("Hud.Wave"), { Shown, UYJJGame::GetWaveCount() }), Canvas->ClipX * 0.5f, Y + S(30), 32, HudColor::Cream, EAlign::Center);
+	Text(YJJLoc::Format(TEXT("Hud.Wave"), { Shown, UYJJGame::GetWaveCount() }), CX, Y + SL(TEXT("Wave.TitleY")), L(TEXT("Wave.TitleSize")), C(TEXT("HudCream")), EAlign::Center);
 	if (Game.GetPhase() == EYJJPhase::Wave)
 	{
 		Text(YJJLoc::Format(TEXT("Hud.WaveLeft"), { Game.GetEnemiesLeft(), FText::AsNumber(UYJJGame::WaveDef(Game.GetWave()).BudgetKg).ToString() }),
-			Canvas->ClipX * 0.5f, Y + S(68), 22, YJJShapes::Hex(0xFF9A9A), EAlign::Center);
+			CX, Y + SL(TEXT("Wave.SubY")), L(TEXT("Wave.LeftSize")), C(TEXT("HudWaveLeft")), EAlign::Center);
 	}
 	else if (Game.GetPhase() == EYJJPhase::Build)
 	{
-		Text(Game.GetWavePreview(Game.GetWave() + 1), Canvas->ClipX * 0.5f, Y + S(68), 19, HudColor::Dim, EAlign::Center);
+		Text(Game.GetWavePreview(Game.GetWave() + 1), CX, Y + SL(TEXT("Wave.SubY")), L(TEXT("Wave.PreviewSize")), C(TEXT("HudDim")), EAlign::Center);
 	}
 }
 
 void AYJJHUD::DrawCards(const UYJJGame& Game, const AYJJCommander& Commander)
 {
-	const float CardW = S(218), CardH = S(124), Gap = S(10);
+	const float CardW = SL(TEXT("Card.W")), CardH = SL(TEXT("Card.H")), Gap = SL(TEXT("Card.Gap"));
 	const float Total = CardW * YJJTowerTypeCount + Gap * (YJJTowerTypeCount - 1);
 	const float X0 = Canvas->ClipX * 0.5f - Total * 0.5f;
-	const float Y0 = Canvas->ClipY - CardH - S(26);
+	const float Y0 = Canvas->ClipY - CardH - SL(TEXT("Card.Bottom"));
 
-	Text(YJJLoc::Get(TEXT("Hud.Controls")), Canvas->ClipX * 0.5f, Y0 - S(22), 18, WithAlpha(HudColor::Cream, 0.85f), EAlign::Center);
+	Text(YJJLoc::Get(TEXT("Hud.Controls")), Canvas->ClipX * 0.5f, Y0 - SL(TEXT("Card.HelpY")), L(TEXT("Card.HelpSize")),
+		WithAlpha(C(TEXT("HudCream")), L(TEXT("Card.HelpAlpha"))), EAlign::Center);
 
+	const float IconX = SL(TEXT("Card.IconX")), IconY = SL(TEXT("Card.IconY")), IconBack = SL(TEXT("Card.IconBack"));
+	const float TextX = SL(TEXT("Card.TextX")), Key = SL(TEXT("Card.KeyXY"));
 	for (int32 i = 0; i < YJJTowerTypeCount; ++i)
 	{
 		const EYJJTowerType Type = static_cast<EYJJTowerType>(i);
@@ -365,32 +311,35 @@ void AYJJHUD::DrawCards(const UYJJGame& Game, const AYJJCommander& Commander)
 		const bool bSelected = Commander.GetSelected() == Type;
 		const bool bAfford = Game.GetGold() >= Info.Cost;
 		const float X = X0 + i * (CardW + Gap);
-		const float Y = Y0 - (bSelected ? S(12) : 0.f);
+		const float Y = Y0 - (bSelected ? SL(TEXT("Card.Lift")) : 0.f);
 		const bool bHover = FBox2D(FVector2D(X, Y), FVector2D(X + CardW, Y + CardH)).IsInside(Mouse);
 		AddButton(X, Y, CardW, CardH, i);
 
 		if (bSelected)
 		{
-			Panel(X - S(5), Y - S(5), CardW + S(10), CardH + S(10), HudColor::Gold, 18.f);
+			const float Border = SL(TEXT("Card.Border"));
+			Panel(X - Border, Y - Border, CardW + Border * 2.f, CardH + Border * 2.f, C(TEXT("HudGold")), L(TEXT("Card.BorderCorner")));
 		}
-		Panel(X, Y, CardW, CardH, bSelected ? FLinearColor(0.1f, 0.14f, 0.28f, 0.96f) : (bHover ? FLinearColor(0.09f, 0.12f, 0.22f, 0.9f) : HudColor::PanelBg));
+		Panel(X, Y, CardW, CardH, C(bSelected ? TEXT("HudCardSelected") : (bHover ? TEXT("HudCardHover") : TEXT("HudPanel"))));
 
-		const float Fade = bAfford ? 1.f : 0.45f;
-		Circle(X + S(48), Y + S(56), S(38), WithAlpha(FLinearColor(1.f, 1.f, 1.f, 0.1f), Fade));
-		TowerIcon(Type, X + S(48), Y + S(56), S(28));
+		const float Fade = bAfford ? 1.f : L(TEXT("Card.Dim"));
+		Circle(X + IconX, Y + IconY, IconBack, WithAlpha(C(TEXT("HudIconBack")), Fade));
+		DrawIcon(StaticEnum<EYJJTowerType>()->GetNameStringByValue(i), X + IconX, Y + IconY, SL(TEXT("Card.IconR")));
 		if (!bAfford)
 		{
-			Circle(X + S(48), Y + S(56), S(38), FLinearColor(0.05f, 0.07f, 0.14f, 0.6f));
+			Circle(X + IconX, Y + IconY, IconBack, C(TEXT("HudIconShade")));
 		}
-		Text(UYJJGame::TowerName(Type), X + S(92), Y + S(30), 20, WithAlpha(HudColor::Cream, Fade));
-		Text(UYJJGame::TowerBlurb(Type), X + S(92), Y + S(58), 14, WithAlpha(HudColor::Dim, Fade), EAlign::Left, 1.f);
-		Coin(X + S(106), Y + S(92), S(11));
-		Text(FString::Printf(TEXT("%d"), Info.Cost), X + S(124), Y + S(92), 24, bAfford ? HudColor::Gold : HudColor::Red);
+		Text(UYJJGame::TowerName(Type), X + TextX, Y + SL(TEXT("Card.NameY")), L(TEXT("Card.NameSize")), WithAlpha(C(TEXT("HudCream")), Fade));
+		Text(UYJJGame::TowerBlurb(Type), X + TextX, Y + SL(TEXT("Card.BlurbY")), L(TEXT("Card.BlurbSize")), WithAlpha(C(TEXT("HudDim")), Fade), EAlign::Left,
+			L(TEXT("Card.BlurbOutline")));
+		const float CostY = Y + SL(TEXT("Card.CoinY"));
+		DrawIcon(TEXT("Coin"), X + SL(TEXT("Card.CoinX")), CostY, SL(TEXT("Card.CoinR")));
+		Text(FString::FromInt(Info.Cost), X + SL(TEXT("Card.CostX")), CostY, L(TEXT("Card.CostSize")), C(bAfford ? TEXT("HudGold") : TEXT("HudRed")));
 
 		// 단축키
-		Circle(X + S(14), Y + S(14), S(15), HudColor::Ink);
-		Circle(X + S(14), Y + S(14), S(12), bSelected ? HudColor::Gold : HudColor::Cream);
-		Text(FString::Printf(TEXT("%d"), i + 1), X + S(14), Y + S(14), 16, HudColor::Ink, EAlign::Center, 0.f);
+		Circle(X + Key, Y + Key, SL(TEXT("Card.KeyOuter")), C(TEXT("HudInk")));
+		Circle(X + Key, Y + Key, SL(TEXT("Card.KeyInner")), C(bSelected ? TEXT("HudGold") : TEXT("HudCream")));
+		Text(FString::FromInt(i + 1), X + Key, Y + Key, L(TEXT("Card.KeySize")), C(TEXT("HudInk")), EAlign::Center, 0.f);
 	}
 }
 
@@ -400,74 +349,82 @@ void AYJJHUD::DrawStart(const UYJJGame& Game)
 	{
 		return;
 	}
-	const float Pulse = 1.f + 0.04f * FMath::Sin(GetWorld()->GetRealTimeSeconds() * 5.f);
-	const float W = S(250) * Pulse, H = S(92) * Pulse;
-	const float X = Canvas->ClipX - S(40) - S(250) * 0.5f - W * 0.5f;
-	const float Y = Canvas->ClipY - S(40) - S(92) * 0.5f - H * 0.5f;
+	const float Pulse = 1.f + L(TEXT("Start.PulseAmount")) * FMath::Sin(GetWorld()->GetRealTimeSeconds() * L(TEXT("Start.PulseSpeed")));
+	const float BaseW = SL(TEXT("Start.W")), BaseH = SL(TEXT("Start.H")), Margin = SL(TEXT("Start.Margin"));
+	const float W = BaseW * Pulse, H = BaseH * Pulse;
+	const float X = Canvas->ClipX - Margin - BaseW * 0.5f - W * 0.5f;
+	const float Y = Canvas->ClipY - Margin - BaseH * 0.5f - H * 0.5f;
 	const bool bHover = FBox2D(FVector2D(X, Y), FVector2D(X + W, Y + H)).IsInside(Mouse);
 	AddButton(X, Y, W, H, ButtonStartWave);
-	Panel(X - S(5), Y - S(5), W + S(10), H + S(10), HudColor::Ink, 22.f);
-	Panel(X, Y, W, H, bHover ? YJJShapes::Hex(0xFF7A45) : YJJShapes::Hex(0xF2542D), 18.f);
-	Text(YJJLoc::Get(Game.GetWave() == 0 ? TEXT("Hud.Start") : TEXT("Hud.NextWave")), X + W * 0.5f, Y + H * 0.42f, 34, HudColor::Cream, EAlign::Center, 3.f);
-	Text(TEXT("Space"), X + W * 0.5f, Y + H * 0.8f, 16, WithAlpha(HudColor::Cream, 0.85f), EAlign::Center, 1.f);
+	const float Border = SL(TEXT("Start.Border"));
+	Panel(X - Border, Y - Border, W + Border * 2.f, H + Border * 2.f, C(TEXT("HudInk")), L(TEXT("Start.BorderCorner")));
+	Panel(X, Y, W, H, C(bHover ? TEXT("HudButtonHover") : TEXT("HudButton")), L(TEXT("Start.Corner")));
+	Text(YJJLoc::Get(Game.GetWave() == 0 ? TEXT("Hud.Start") : TEXT("Hud.NextWave")), X + W * 0.5f, Y + H * L(TEXT("Start.LabelY")), L(TEXT("Start.LabelSize")),
+		C(TEXT("HudCream")), EAlign::Center, L(TEXT("Start.LabelOutline")));
+	Text(YJJLoc::Get(TEXT("Hud.StartKey")), X + W * 0.5f, Y + H * L(TEXT("Start.KeyY")), L(TEXT("Start.KeySize")), WithAlpha(C(TEXT("HudCream")), L(TEXT("Start.KeyAlpha"))),
+		EAlign::Center, L(TEXT("Card.BlurbOutline")));
 
 	if (Game.GetWave() == 0)
 	{
 		// 첫 안내
-		const float PW = S(760), PH = S(84);
-		const float PX = Canvas->ClipX * 0.5f - PW * 0.5f, PY = S(140);
-		Panel(PX, PY, PW, PH, HudColor::PanelBg);
-		Text(YJJLoc::Get(TEXT("Hud.IntroTitle")), Canvas->ClipX * 0.5f, PY + S(28), 26, HudColor::Gold, EAlign::Center);
-		Text(YJJLoc::Get(TEXT("Hud.IntroBody")), Canvas->ClipX * 0.5f, PY + S(60), 20, HudColor::Cream, EAlign::Center);
+		const float PW = SL(TEXT("Intro.W")), PH = SL(TEXT("Intro.H"));
+		const float CX = Canvas->ClipX * 0.5f;
+		const float PY = SL(TEXT("Intro.Y"));
+		Panel(CX - PW * 0.5f, PY, PW, PH, C(TEXT("HudPanel")));
+		Text(YJJLoc::Get(TEXT("Hud.IntroTitle")), CX, PY + SL(TEXT("Intro.TitleY")), L(TEXT("Intro.TitleSize")), C(TEXT("HudGold")), EAlign::Center);
+		Text(YJJLoc::Get(TEXT("Hud.IntroBody")), CX, PY + SL(TEXT("Intro.BodyY")), L(TEXT("Intro.BodySize")), C(TEXT("HudCream")), EAlign::Center);
 	}
 }
 
 void AYJJHUD::DrawFlick(const UYJJGame& Game)
 {
 	// 딱밤 게이지: 다 차면 적을 클릭해 튕길 수 있다
-	const float X = S(70), Y = Canvas->ClipY - S(78), R = S(40);
+	const float X = SL(TEXT("Flick.X")), Y = Canvas->ClipY - SL(TEXT("Flick.Bottom")), R = SL(TEXT("Flick.R"));
 	const float Charge = Game.GetFlickCharge();
-	Circle(X, Y, R + S(5), HudColor::Ink);
-	Circle(X, Y, R, FLinearColor(0.12f, 0.15f, 0.26f, 1.f));
-	// 아래에서부터 차오르는 부채꼴 대신 크기로 표시
-	Circle(X, Y, R * FMath::Sqrt(Charge), Charge >= 1.f ? HudColor::Gold : YJJShapes::Hex(0x8B93A7));
-	Text(YJJLoc::Get(TEXT("Hud.Flick")), X, Y, 22, Charge >= 1.f ? HudColor::Ink : HudColor::Cream, EAlign::Center, Charge >= 1.f ? 0.f : 2.f);
+	const bool bReady = Charge >= 1.f;
+	Circle(X, Y, R + SL(TEXT("Flick.Border")), C(TEXT("HudInk")));
+	Circle(X, Y, R, C(TEXT("HudFlickBack")));
+	// 차오르는 정도를 원 크기로
+	Circle(X, Y, R * FMath::Sqrt(Charge), C(bReady ? TEXT("HudGold") : TEXT("HudFlickCharge")));
+	Text(YJJLoc::Get(TEXT("Hud.Flick")), X, Y, L(TEXT("Flick.Size")), C(bReady ? TEXT("HudInk") : TEXT("HudCream")), EAlign::Center, bReady ? 0.f : OutlineDefault);
 }
 
 void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 {
-	// 덩치 큰 적의 체력 막대
+	// 덩치 큰 적은 몸무게를, 다친 적은 체력 막대를 달고 다닌다
 	for (const AYJJWobbler* Enemy : Game.GetEnemies())
 	{
 		if (!Enemy || !Enemy->IsAlive())
 		{
 			continue;
 		}
-		const bool bHeavy = Enemy->GetWeight() >= 150.f;
-		const bool bHurt = Enemy->GetHealthRatio() < 0.999f;
+		const bool bHeavy = Enemy->GetWeight() >= L(TEXT("World.HeavyKg"));
+		const bool bHurt = Enemy->GetHealthRatio() < 1.f;
 		if (!bHeavy && !bHurt)
 		{
 			continue;
 		}
-		const FVector Screen = Canvas->Project(Enemy->GetBodyLocation() + FVector(0, 0, 125.f * Enemy->GetScale()));
+		const FVector Screen = Canvas->Project(Enemy->GetBodyLocation() + FVector(0, 0, L(TEXT("World.BarHeightPerScale")) * Enemy->GetScale()));
 		if (Screen.Z <= 0.f)
 		{
 			continue;
 		}
 		if (bHurt)
 		{
-			const float W = S(26.f + 22.f * Enemy->GetScale()), H = S(7);
-			Rect(Screen.X - W * 0.5f - S(2), Screen.Y - S(2), W + S(4), H + S(4), HudColor::Ink);
-			Rect(Screen.X - W * 0.5f, Screen.Y, W * Enemy->GetHealthRatio(), H, YJJShapes::Hex(0xFF5C5C));
+			const float W = S(L(TEXT("World.BarW")) + L(TEXT("World.BarWPerScale")) * Enemy->GetScale()), H = SL(TEXT("World.BarH")), Border = SL(TEXT("World.BarBorder"));
+			Rect(Screen.X - W * 0.5f - Border, Screen.Y - Border, W + Border * 2.f, H + Border * 2.f, C(TEXT("HudInk")));
+			Rect(Screen.X - W * 0.5f, Screen.Y, W * Enemy->GetHealthRatio(), H, C(TEXT("HudHealth")));
 		}
 		if (bHeavy)
 		{
-			// 무거운 놈은 몸무게를 달고 다닌다 (잘 안 날아간다는 신호)
-			Text(YJJLoc::Format(TEXT("Hud.Weight"), { FMath::RoundToInt(Enemy->GetWeight()) }), Screen.X, Screen.Y - S(16), 17, YJJShapes::Hex(0xFFD6A5), EAlign::Center, 2.f);
+			// 잘 안 날아간다는 신호
+			Text(YJJLoc::Format(TEXT("Hud.Weight"), { FMath::RoundToInt(Enemy->GetWeight()) }), Screen.X, Screen.Y - SL(TEXT("World.WeightY")), L(TEXT("World.WeightSize")),
+				C(TEXT("HudWeight")), EAlign::Center);
 		}
 	}
 
-	// 떠오르는 글자
+	// 떠오르는 글자: 톡 커졌다가 떠오르며 사라진다
+	const float Life = FMath::Max(YJJData::Tune(TEXT("Hud.FloaterLife")), KINDA_SMALL_NUMBER);
 	for (const FYJJFloater& Floater : Game.GetFloaters())
 	{
 		const FVector Screen = Canvas->Project(Floater.Location);
@@ -475,9 +432,11 @@ void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 		{
 			continue;
 		}
-		const float T = Floater.Age / 1.2f;
-		const float Pop = 1.f + 0.5f * FMath::Exp(-Floater.Age * 14.f);
-		Text(Floater.Text, Screen.X, Screen.Y - S(70.f) * (1.f - FMath::Square(1.f - T)), Floater.Size * Pop, WithAlpha(Floater.Color, FMath::Clamp((1.f - T) * 3.f, 0.f, 1.f)), EAlign::Center, 3.f);
+		const float T = Floater.Age / Life;
+		const float Pop = 1.f + L(TEXT("Floater.PopAmount")) * FMath::Exp(-Floater.Age * L(TEXT("Floater.PopSpeed")));
+		const float Rise = SL(TEXT("Floater.Rise")) * (1.f - FMath::Square(1.f - T));
+		Text(Floater.Text, Screen.X, Screen.Y - Rise, Floater.Size * Pop, WithAlpha(Floater.Color, FMath::Clamp((1.f - T) * L(TEXT("Floater.FadeSpeed")), 0.f, 1.f)),
+			EAlign::Center, L(TEXT("Floater.Outline")));
 	}
 
 	// 발판 안내
@@ -485,11 +444,11 @@ void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 	const TArray<YJJMap::FPad>& Pads = YJJMap::Pads();
 	if (Pads.IsValidIndex(Pad))
 	{
-		const FVector Screen = Canvas->Project(Pads[Pad].Location + FVector(0, 0, 330));
+		const FVector Screen = Canvas->Project(Pads[Pad].Location + FVector(0, 0, L(TEXT("Pad.LabelHeight"))));
 		if (Screen.Z > 0.f)
 		{
 			FString Line;
-			FLinearColor Color = HudColor::Cream;
+			FLinearColor Color = C(TEXT("HudCream"));
 			if (Game.HasTower(Pad))
 			{
 				const EYJJTowerType Type = Game.GetPadTower(Pad);
@@ -504,7 +463,7 @@ void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 				{
 					const int32 Cost = UYJJGame::UpgradeCost(Type, Level);
 					Line = YJJLoc::Format(TEXT("Hud.PadUpgrade"), { Name, Level, Extra, Cost, UYJJGame::UpgradeText(Type, Level), Game.SellValue(Pad) });
-					Color = Game.GetGold() >= Cost ? HudColor::Gold : HudColor::Cream;
+					Color = C(Game.GetGold() >= Cost ? TEXT("HudGold") : TEXT("HudCream"));
 				}
 				else
 				{
@@ -514,13 +473,14 @@ void AYJJHUD::DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander)
 			else
 			{
 				const FYJJTowerRow& Info = UYJJGame::TowerInfo(Commander.GetSelected());
-				const bool bAfford = Game.GetGold() >= Info.Cost;
 				Line = YJJLoc::Format(TEXT("Hud.PadBuild"), { UYJJGame::TowerName(Commander.GetSelected()), Info.Cost });
-				Color = bAfford ? HudColor::Gold : HudColor::Red;
+				Color = C(Game.GetGold() >= Info.Cost ? TEXT("HudGold") : TEXT("HudRed"));
 			}
-			const FVector2D Size = Measure(Line, 22);
-			Panel(Screen.X - Size.X * 0.5f - S(14), Screen.Y - S(20), Size.X + S(28), S(40), HudColor::PanelBg, 12.f);
-			Text(Line, Screen.X, Screen.Y, 22, Color, EAlign::Center);
+			const float Size = L(TEXT("Pad.LabelSize"));
+			const FVector2D Measured = Measure(Line, Size);
+			const float PadX = SL(TEXT("Pad.PanelPadX")), PanelH = SL(TEXT("Pad.PanelH"));
+			Panel(Screen.X - Measured.X * 0.5f - PadX, Screen.Y - PanelH * 0.5f, Measured.X + PadX * 2.f, PanelH, C(TEXT("HudPanel")), L(TEXT("Pad.PanelCorner")));
+			Text(Line, Screen.X, Screen.Y, Size, Color, EAlign::Center);
 		}
 	}
 }
@@ -533,45 +493,51 @@ void AYJJHUD::DrawBanner(const UYJJGame& Game)
 	{
 		return;
 	}
-	const float Alpha = FMath::Clamp((Life - Age) / 0.4f, 0.f, 1.f);
-	const float Pop = 1.f + 0.7f * FMath::Exp(-Age * 10.f);
-	Text(Game.GetBannerText(), Canvas->ClipX * 0.5f, Canvas->ClipY * 0.3f, 76.f * Pop, WithAlpha(Game.GetBannerColor(), Alpha), EAlign::Center, 6.f);
+	const float Alpha = FMath::Clamp((Life - Age) / L(TEXT("Banner.Fade")), 0.f, 1.f);
+	const float Pop = 1.f + L(TEXT("Banner.PopAmount")) * FMath::Exp(-Age * L(TEXT("Banner.PopSpeed")));
+	Text(Game.GetBannerText(), Canvas->ClipX * 0.5f, Canvas->ClipY * L(TEXT("Banner.Y")), Game.GetBannerSize() * Pop, WithAlpha(Game.GetBannerColor(), Alpha),
+		EAlign::Center, L(TEXT("Banner.Outline")));
 }
 
 void AYJJHUD::DrawEnd(const UYJJGame& Game)
 {
 	const bool bWon = Game.GetPhase() == EYJJPhase::Won;
-	const float Appear = FMath::Clamp((Game.GetEndAge() - 0.6f) / 0.5f, 0.f, 1.f);
+	const float Appear = FMath::Clamp((Game.GetEndAge() - L(TEXT("End.Delay"))) / L(TEXT("End.FadeIn")), 0.f, 1.f);
 	if (Appear <= 0.f)
 	{
 		return;
 	}
-	Rect(0, 0, Canvas->ClipX, Canvas->ClipY, FLinearColor(0.02f, 0.03f, 0.08f, 0.5f * Appear));
-	const float W = S(640), H = S(460);
-	const float X = Canvas->ClipX * 0.5f - W * 0.5f;
-	const float Y = Canvas->ClipY * 0.5f - H * 0.5f + S(40) * (1.f - Appear);
-	Panel(X - S(6), Y - S(6), W + S(12), H + S(12), WithAlpha(bWon ? HudColor::Gold : HudColor::Red, Appear), 26.f);
-	Panel(X, Y, W, H, WithAlpha(FLinearColor(0.06f, 0.08f, 0.16f, 0.97f), Appear), 22.f);
+	Rect(0, 0, Canvas->ClipX, Canvas->ClipY, WithAlpha(C(TEXT("HudOverlay")), Appear));
+	const float W = SL(TEXT("End.W")), H = SL(TEXT("End.H"));
 	const float CX = Canvas->ClipX * 0.5f;
-	Text(YJJLoc::Get(bWon ? TEXT("Hud.Won") : TEXT("Hud.Lost")), CX, Y + S(70), 54, WithAlpha(bWon ? HudColor::Gold : HudColor::Red, Appear), EAlign::Center, 4.f);
-	Text(YJJLoc::Format(TEXT("Hud.Wave"), { Game.GetWave(), UYJJGame::GetWaveCount() }), CX, Y + S(132), 26, WithAlpha(HudColor::Dim, Appear), EAlign::Center);
+	const float X = CX - W * 0.5f;
+	const float Y = Canvas->ClipY * 0.5f - H * 0.5f + SL(TEXT("End.Slide")) * (1.f - Appear);
+	const FLinearColor Accent = C(bWon ? TEXT("HudGold") : TEXT("HudRed"));
+	const float Border = SL(TEXT("End.Border"));
+	Panel(X - Border, Y - Border, W + Border * 2.f, H + Border * 2.f, WithAlpha(Accent, Appear), L(TEXT("End.BorderCorner")));
+	Panel(X, Y, W, H, WithAlpha(C(TEXT("HudEndPanel")), Appear), L(TEXT("End.Corner")));
+	Text(YJJLoc::Get(bWon ? TEXT("Hud.Won") : TEXT("Hud.Lost")), CX, Y + SL(TEXT("End.TitleY")), L(TEXT("End.TitleSize")), WithAlpha(Accent, Appear), EAlign::Center,
+		L(TEXT("End.TitleOutline")));
+	Text(YJJLoc::Format(TEXT("Hud.Wave"), { Game.GetWave(), UYJJGame::GetWaveCount() }), CX, Y + SL(TEXT("End.WaveY")), L(TEXT("End.WaveSize")),
+		WithAlpha(C(TEXT("HudDim")), Appear), EAlign::Center);
 
-	const FString Lines[4][2] = {
+	const TPair<FString, FString> Lines[] = {
 		{ YJJLoc::Get(TEXT("Hud.StatKills")), FString::FromInt(Game.GetKills()) },
 		{ YJJLoc::Get(TEXT("Hud.StatDrowned")), FString::FromInt(Game.GetDrowned()) },
-		{ YJJLoc::Get(TEXT("Hud.StatCombo")), FString::Printf(TEXT("x%d"), Game.GetBestCombo()) },
+		{ YJJLoc::Get(TEXT("Hud.StatCombo")), YJJLoc::Format(TEXT("Hud.StatComboValue"), { Game.GetBestCombo() }) },
 		{ YJJLoc::Get(TEXT("Hud.StatLeaked")), FString::FromInt(Game.GetLeaked()) } };
-	for (int32 i = 0; i < 4; ++i)
+	const float Inset = SL(TEXT("End.StatsInset"));
+	for (int32 i = 0; i < UE_ARRAY_COUNT(Lines); ++i)
 	{
-		const float LineY = Y + S(190) + i * S(42);
-		Text(Lines[i][0], X + S(110), LineY, 26, WithAlpha(HudColor::Cream, Appear));
-		Text(Lines[i][1], X + W - S(110), LineY, 30, WithAlpha(HudColor::Gold, Appear), EAlign::Right);
+		const float LineY = Y + SL(TEXT("End.StatsY")) + i * SL(TEXT("End.StatsStep"));
+		Text(Lines[i].Key, X + Inset, LineY, L(TEXT("End.StatLabelSize")), WithAlpha(C(TEXT("HudCream")), Appear));
+		Text(Lines[i].Value, X + W - Inset, LineY, L(TEXT("End.StatValueSize")), WithAlpha(C(TEXT("HudGold")), Appear), EAlign::Right);
 	}
 
-	const float BW = S(280), BH = S(70);
-	const float BX = CX - BW * 0.5f, BY = Y + H - BH - S(30);
+	const float BW = SL(TEXT("End.ButtonW")), BH = SL(TEXT("End.ButtonH"));
+	const float BX = CX - BW * 0.5f, BY = Y + H - BH - SL(TEXT("End.ButtonBottom"));
 	const bool bHover = FBox2D(FVector2D(BX, BY), FVector2D(BX + BW, BY + BH)).IsInside(Mouse);
 	AddButton(BX, BY, BW, BH, ButtonRestart);
-	Panel(BX, BY, BW, BH, WithAlpha(bHover ? YJJShapes::Hex(0xFF7A45) : YJJShapes::Hex(0xF2542D), Appear), 16.f);
-	Text(YJJLoc::Get(TEXT("Hud.Restart")), CX, BY + BH * 0.5f, 30, WithAlpha(HudColor::Cream, Appear), EAlign::Center, 3.f);
+	Panel(BX, BY, BW, BH, WithAlpha(C(bHover ? TEXT("HudButtonHover") : TEXT("HudButton")), Appear), L(TEXT("End.ButtonCorner")));
+	Text(YJJLoc::Get(TEXT("Hud.Restart")), CX, BY + BH * 0.5f, L(TEXT("End.ButtonSize")), WithAlpha(C(TEXT("HudCream")), Appear), EAlign::Center, L(TEXT("End.ButtonOutline")));
 }

@@ -1,6 +1,7 @@
 #include "World/YJJShapes.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "Data/YJJData.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -8,49 +9,20 @@
 #include "Materials/MaterialInterface.h"
 #include "ProceduralMeshComponent.h"
 #include "YJJAssetPaths.h"
+#include "YJJWacky.h"
 
-namespace
-{
-	template <typename T>
-	T* LoadCached(const TCHAR* Path)
-	{
-		// 엔진/게임 에셋은 GC 루트에 올려 두고 계속 쓴다
-		static TMap<FString, TWeakObjectPtr<UObject>> Cache;
-		if (TWeakObjectPtr<UObject>* Found = Cache.Find(Path))
-		{
-			if (Found->IsValid())
-			{
-				return Cast<T>(Found->Get());
-			}
-		}
-		T* Loaded = LoadObject<T>(nullptr, Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
-		if (Loaded)
-		{
-			Loaded->AddToRoot();
-			Cache.Add(Path, Loaded);
-		}
-		return Loaded;
-	}
-
-	UMaterialInstanceDynamic* MakeMID(UObject* Outer, const TCHAR* Path)
-	{
-		UMaterialInterface* Parent = LoadCached<UMaterialInterface>(Path);
-		if (!Parent)
-		{
-			Parent = LoadCached<UMaterialInterface>(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
-		}
-		return Parent ? UMaterialInstanceDynamic::Create(Parent, Outer) : nullptr;
-	}
-}
+TMap<FString, TWeakObjectPtr<UObject>> YJJShapes::AssetCache;
 
 UMaterialInstanceDynamic* UYJJPalette::Solid(const FLinearColor& Color, float Emissive)
 {
-	const uint64 Key = (static_cast<uint64>(Color.ToFColor(true).DWColor()) << 16) | static_cast<uint64>(FMath::Clamp(FMath::RoundToInt(Emissive * 100.f), 0, 65535));
+	const uint64 Key = (static_cast<uint64>(Color.ToFColor(true).DWColor()) << EmissiveKeyBits)
+		| static_cast<uint64>(FMath::Clamp(FMath::RoundToInt(Emissive * EmissiveKeyScale), 0, (1 << EmissiveKeyBits) - 1));
 	if (TObjectPtr<UMaterialInstanceDynamic>* Found = Cache.Find(Key))
 	{
 		return *Found;
 	}
-	UMaterialInstanceDynamic* MID = MakeMID(this, YJJAssetPaths::FlatMaterial);
+	UMaterialInterface* Parent = LoadObject<UMaterialInterface>(nullptr, YJJAssetPaths::FlatMaterial, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	UMaterialInstanceDynamic* MID = Parent ? UMaterialInstanceDynamic::Create(Parent, this) : nullptr;
 	if (MID)
 	{
 		MID->SetVectorParameterValue(TEXT("Color"), Color);
@@ -58,6 +30,47 @@ UMaterialInstanceDynamic* UYJJPalette::Solid(const FLinearColor& Color, float Em
 		Cache.Add(Key, MID);
 	}
 	return MID;
+}
+
+// ============================================================ 모델 부품 찾기
+
+USceneComponent* FYJJModelParts::First(const TCHAR* Tag) const
+{
+	const TArray<USceneComponent*>* Found = Tagged.Find(FName(Tag));
+	return (Found && Found->Num()) ? (*Found)[0] : nullptr;
+}
+
+UStaticMeshComponent* FYJJModelParts::FirstMesh(const TCHAR* Tag) const
+{
+	return Cast<UStaticMeshComponent>(First(Tag));
+}
+
+TArray<UStaticMeshComponent*> FYJJModelParts::Meshes(const TCHAR* Tag) const
+{
+	TArray<UStaticMeshComponent*> Result;
+	if (const TArray<USceneComponent*>* Found = Tagged.Find(FName(Tag)))
+	{
+		for (USceneComponent* Comp : *Found)
+		{
+			if (UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(Comp))
+			{
+				Result.Add(Mesh);
+			}
+		}
+	}
+	return Result;
+}
+
+// ============================================================ 도형
+
+UMaterialInstanceDynamic* YJJShapes::MakeMID(UObject* Outer, const TCHAR* Path)
+{
+	UMaterialInterface* Parent = LoadCached<UMaterialInterface>(Path);
+	if (!Parent)
+	{
+		Parent = LoadCached<UMaterialInterface>(FallbackMaterial);
+	}
+	return Parent ? UMaterialInstanceDynamic::Create(Parent, Outer) : nullptr;
 }
 
 UStaticMesh* YJJShapes::Mesh(EYJJShape Shape)
@@ -73,9 +86,13 @@ UStaticMesh* YJJShapes::Mesh(EYJJShape Shape)
 	return nullptr;
 }
 
-FLinearColor YJJShapes::Hex(uint32 RGB)
+EYJJShape YJJShapes::ParseShape(const FString& Name)
 {
-	return FLinearColor::FromSRGBColor(FColor((RGB >> 16) & 0xFF, (RGB >> 8) & 0xFF, RGB & 0xFF, 255));
+	if (Name.Equals(TEXT("Sphere"), ESearchCase::IgnoreCase)) { return EYJJShape::Sphere; }
+	if (Name.Equals(TEXT("Cylinder"), ESearchCase::IgnoreCase)) { return EYJJShape::Cylinder; }
+	if (Name.Equals(TEXT("Cone"), ESearchCase::IgnoreCase)) { return EYJJShape::Cone; }
+	if (Name.Equals(TEXT("Plane"), ESearchCase::IgnoreCase)) { return EYJJShape::Plane; }
+	return EYJJShape::Cube;
 }
 
 UMaterialInstanceDynamic* YJJShapes::Solid(const UObject* WorldContext, const FLinearColor& Color, float Emissive)
@@ -114,7 +131,7 @@ UStaticMeshComponent* YJJShapes::Add(AActor* Owner, USceneComponent* Parent, EYJ
 	}
 	Comp->SetRelativeLocation(Location);
 	Comp->SetRelativeRotation(Rotation);
-	Comp->SetRelativeScale3D(Size / 100.f);
+	Comp->SetRelativeScale3D(Size / MeshSize);
 	if (Material)
 	{
 		Comp->SetMaterial(0, Material);
@@ -140,12 +157,125 @@ UStaticMeshComponent* YJJShapes::Add(AActor* Owner, USceneComponent* Parent, EYJ
 	return Comp;
 }
 
+USceneComponent* YJJShapes::AddPivot(AActor* Owner, USceneComponent* Parent, const FVector& Location, const FRotator& Rotation)
+{
+	USceneComponent* Scene = NewObject<USceneComponent>(Owner);
+	Scene->SetupAttachment(Parent);
+	Scene->SetRelativeLocation(Location);
+	Scene->SetRelativeRotation(Rotation);
+	Scene->RegisterComponent();
+	return Scene;
+}
+
+FLinearColor YJJShapes::PartColor(const FString& Name, const FYJJModelContext& Context)
+{
+	if (Name.Equals(BodyColorName, ESearchCase::IgnoreCase))
+	{
+		return Context.Body;
+	}
+	if (Name.Equals(DarkColorName, ESearchCase::IgnoreCase))
+	{
+		return Context.Dark;
+	}
+	return YJJData::Color(Name);
+}
+
+void YJJShapes::BuildPart(AActor* Owner, const FYJJPartRow& Row, FYJJModelContext& Context, FYJJModelParts& Out)
+{
+	USceneComponent* const* ParentFound = Context.Parents.Find(FName(*Row.Parent));
+	USceneComponent* Parent = ParentFound ? *ParentFound : nullptr;
+	if (!Parent)
+	{
+		UE_LOG(LogYJJWacky, Warning, TEXT("[Parts] %s: 부모 '%s' 가 없어서 Root 에 단다"), *Row.Model, *Row.Parent);
+		USceneComponent* const* Root = Context.Parents.Find(FName(RootParent));
+		Parent = Root ? *Root : Owner->GetRootComponent();
+	}
+	const bool bPivot = Row.Type.Equals(PivotType, ESearchCase::IgnoreCase);
+	const bool bRoll = Row.RepeatAxis.Equals(RollAxis, ESearchCase::IgnoreCase);
+	const int32 Sides = Row.Mirror ? 2 : 1;
+	const FName Tag = Row.Tag.IsEmpty() ? NAME_None : FName(*Row.Tag);
+
+	for (int32 Side = 0; Side < Sides; ++Side)
+	{
+		// 대칭: 좌우(Y)를 뒤집으면 Yaw·Roll 도 뒤집힌다
+		const float Flip = Side == 0 ? 1.f : -1.f;
+		const FVector BaseLocation(Row.X, Row.Y * Flip, Row.Z);
+		const FRotator BaseRotation(Row.Pitch, Row.Yaw * Flip, Row.Roll * Flip);
+		for (int32 k = 0; k < FMath::Max(1, Row.Repeat); ++k)
+		{
+			const float Step = Row.RepeatStep * k;
+			const FQuat Around = bRoll ? FRotator(0.f, 0.f, Step).Quaternion() : FRotator(0.f, Step, 0.f).Quaternion();
+			const FVector Location = Around.RotateVector(BaseLocation) * Context.Scale;
+			const FRotator Rotation = (Around * BaseRotation.Quaternion()).Rotator();
+
+			USceneComponent* Made = nullptr;
+			if (bPivot)
+			{
+				Made = AddPivot(Owner, Parent, Location, Rotation);
+				if (Row.ScaleBy.Equals(ClubScaleName, ESearchCase::IgnoreCase))
+				{
+					Made->SetRelativeScale3D(FVector(Context.ClubScale));
+				}
+				if (Tag != NAME_None && !Context.Parents.Contains(Tag))
+				{
+					Context.Parents.Add(Tag, Made);
+				}
+			}
+			else
+			{
+				const FLinearColor Color = PartColor(Row.Color, Context);
+				UMaterialInterface* Material = Row.Opacity > 0.f ? static_cast<UMaterialInterface*>(Unlit(Owner, Color, Row.Opacity)) : Solid(Owner, Color);
+				const FVector Size = FVector(Row.SX, Row.SY, Row.SZ) * Context.Scale;
+				UStaticMeshComponent* Mesh = Add(Owner, Parent, ParseShape(Row.Shape), Location, Size, Material, Row.Collide != 0, Rotation);
+				Mesh->SetCastShadow(Row.Shadow != 0 && Row.Opacity <= 0.f);
+				if (Row.Hidden)
+				{
+					Mesh->SetVisibility(false);
+				}
+				if (Row.Loose)
+				{
+					Mesh->SetUsingAbsoluteLocation(true);
+					Mesh->SetUsingAbsoluteRotation(true);
+					Mesh->SetUsingAbsoluteScale(true);
+				}
+				if (Row.Skin)
+				{
+					Out.Skin.Add(Mesh);
+				}
+				Made = Mesh;
+			}
+			if (Tag != NAME_None)
+			{
+				Out.Tagged.FindOrAdd(Tag).Add(Made);
+			}
+		}
+	}
+}
+
+FYJJModelParts YJJShapes::BuildModel(AActor* Owner, const FString& Model, FYJJModelContext& Context)
+{
+	check(Owner);
+	FYJJModelParts Out;
+	if (!Context.Parents.Contains(FName(RootParent)))
+	{
+		Context.Parents.Add(FName(RootParent), Owner->GetRootComponent());
+	}
+	for (const FYJJPartRow* Row : YJJData::Parts(Model))
+	{
+		if (Context.Level >= Row->MinLevel && Context.Level <= Row->MaxLevel)
+		{
+			BuildPart(Owner, *Row, Context, Out);
+		}
+	}
+	return Out;
+}
+
 float YJJShapes::Hash(int32 Seed)
 {
-	uint32 X = static_cast<uint32>(Seed) * 747796405u + 2891336453u;
-	X = ((X >> ((X >> 28u) + 4u)) ^ X) * 277803737u;
-	X = (X >> 22u) ^ X;
-	return static_cast<float>(X & 0xFFFFFFu) / static_cast<float>(0xFFFFFFu);
+	uint32 X = static_cast<uint32>(Seed) * HashMultiplier + HashIncrement;
+	X = ((X >> ((X >> HashShiftSelect) + HashShiftBase)) ^ X) * HashMixMultiplier;
+	X = (X >> HashFinalShift) ^ X;
+	return static_cast<float>(X & HashMask) / static_cast<float>(HashMask);
 }
 
 FLinearColor YJJShapes::Shade(const FLinearColor& Color, float Scale)
@@ -162,8 +292,7 @@ void FYJJLowPoly::Tri(const FVector& A, const FVector& B, const FVector& C, cons
 	const bool bFlip = FVector::DotProduct(N, Outward) < 0.f;
 	N = (bFlip ? -N : N).GetSafeNormal();
 
-	// 면마다 밝기를 아주 조금씩 달리해서 각진 면이 살아 보이게
-	const FLinearColor Face = YJJShapes::Shade(Color, 0.95f + 0.1f * YJJShapes::Hash(Vertices.Num() * 7 + 13));
+	const FLinearColor Face = YJJShapes::Shade(Color, FaceShadeMin + FaceShadeRange * YJJShapes::Hash(Vertices.Num() * FaceSeedMultiplier + FaceSeedOffset));
 	const int32 Index = Vertices.Num();
 	Vertices.Add(A);
 	Vertices.Add(bFlip ? C : B);
@@ -191,8 +320,8 @@ void FYJJLowPoly::Frustum(const FVector& Base, float BottomRadius, float TopRadi
 	{
 		const float A = FMath::DegreesToRadians(YawDeg) + i * TWO_PI / Sides;
 		const FVector Dir(FMath::Cos(A), FMath::Sin(A), 0.f);
-		const float J0 = 1.f + Jitter * (YJJShapes::Hash(Seed * 31 + i * 2) - 0.5f) * 2.f;
-		const float J1 = 1.f + Jitter * (YJJShapes::Hash(Seed * 31 + i * 2 + 1) - 0.5f) * 2.f;
+		const float J0 = 1.f + Jitter * (YJJShapes::Hash(Seed * JitterSeedMultiplier + i * 2) - 0.5f) * 2.f;
+		const float J1 = 1.f + Jitter * (YJJShapes::Hash(Seed * JitterSeedMultiplier + i * 2 + 1) - 0.5f) * 2.f;
 		Bottom.Add(Base + Dir * BottomRadius * J0);
 		Top.Add(Base + FVector(0, 0, Height) + Dir * TopRadius * J1);
 	}
@@ -200,8 +329,8 @@ void FYJJLowPoly::Frustum(const FVector& Base, float BottomRadius, float TopRadi
 	for (int32 i = 0; i < Sides; ++i)
 	{
 		const int32 j = (i + 1) % Sides;
-		const FVector Out = ((Bottom[i] + Bottom[j] + Top[i] + Top[j]) * 0.25f - (Base + FVector(0, 0, Height * 0.5f))).GetSafeNormal2D() + FVector(0, 0, 0.01f);
-		if (TopRadius > 1.f)
+		const FVector Out = ((Bottom[i] + Bottom[j] + Top[i] + Top[j]) * 0.25f - (Base + FVector(0, 0, Height * 0.5f))).GetSafeNormal2D() + FVector(0, 0, OutwardLift);
+		if (TopRadius > PointedRadius)
 		{
 			Quad(Bottom[i], Bottom[j], Top[j], Top[i], SideColor, Out);
 			Tri(TopCenter, Top[i], Top[j], TopColor, FVector::UpVector);
@@ -240,23 +369,21 @@ void FYJJLowPoly::Box(const FVector& Center, const FVector& Size, const FLinearC
 
 void FYJJLowPoly::Rock(const FVector& Center, float Radius, const FLinearColor& Color, int32 Seed)
 {
-	const float T = 1.618034f;
-	const FVector Base[12] = {
+	// 정이십면체 꼭짓점: (±1, ±φ, 0), (0, ±1, ±φ), (±φ, 0, ±1)
+	const float T = GoldenRatio;
+	const FVector Base[IcoVertexCount] = {
 		FVector(-1, T, 0), FVector(1, T, 0), FVector(-1, -T, 0), FVector(1, -T, 0),
 		FVector(0, -1, T), FVector(0, 1, T), FVector(0, -1, -T), FVector(0, 1, -T),
 		FVector(T, 0, -1), FVector(T, 0, 1), FVector(-T, 0, -1), FVector(-T, 0, 1) };
-	const int32 Faces[20][3] = {
-		{0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11}, {1, 5, 9}, {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8},
-		{3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8}, {3, 8, 9}, {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1} };
-	FVector P[12];
-	for (int32 i = 0; i < 12; ++i)
+	FVector P[IcoVertexCount];
+	for (int32 i = 0; i < IcoVertexCount; ++i)
 	{
-		const float J = 0.75f + 0.45f * YJJShapes::Hash(Seed * 17 + i);
+		const float J = RockJitterMin + RockJitterRange * YJJShapes::Hash(Seed * RockSeedMultiplier + i);
 		FVector V = Base[i].GetSafeNormal() * Radius * J;
-		V.Z *= 0.75f;
+		V.Z *= RockFlatten;
 		P[i] = Center + V;
 	}
-	for (const int32* F : Faces)
+	for (const int32* F : IcoFaces)
 	{
 		Tri(P[F[0]], P[F[1]], P[F[2]], Color, (P[F[0]] + P[F[1]] + P[F[2]]) / 3.f - Center);
 	}
@@ -264,13 +391,49 @@ void FYJJLowPoly::Rock(const FVector& Center, float Radius, const FLinearColor& 
 
 void FYJJLowPoly::Tree(const FVector& Base, float Height, const FLinearColor& Trunk, const FLinearColor& Leaf, int32 Seed)
 {
-	const float R = Height * 0.3f;
-	Frustum(Base, Height * 0.07f, Height * 0.05f, Height * 0.35f, 5, Trunk, Trunk, 0.f, Seed);
-	for (int32 i = 0; i < 3; ++i)
+	const float R = Height * TreeCrownRadius;
+	Frustum(Base, Height * TrunkBottom, Height * TrunkTop, Height * TrunkHeight, TrunkSides, Trunk, Trunk, 0.f, Seed);
+	for (int32 i = 0; i < CrownLayers; ++i)
 	{
-		const float Z = Height * (0.25f + i * 0.22f);
-		const float Scale = 1.f - i * 0.25f;
-		Frustum(Base + FVector(0, 0, Z), R * Scale, 0.f, Height * 0.4f, 6, Leaf, YJJShapes::Shade(Leaf, 1.f + i * 0.08f), 0.12f, Seed + i * 5, YJJShapes::Hash(Seed + i) * 60.f);
+		const float Z = Height * (CrownStart + i * CrownStep);
+		const float Shrink = 1.f - i * CrownShrink;
+		Frustum(Base + FVector(0, 0, Z), R * Shrink, 0.f, Height * CrownHeight, CrownSides, Leaf, YJJShapes::Shade(Leaf, 1.f + i * CrownBrighten),
+			CrownJitter, Seed + i * CrownSeedStep, YJJShapes::Hash(Seed + i) * CrownYawRange);
+	}
+}
+
+void FYJJLowPoly::AddRow(const FYJJLowPolyRow& Row, const FVector& Origin, float Side)
+{
+	const FVector At = Origin + FVector(Row.X, Row.Y * Side, Row.Z);
+	const FLinearColor Top = YJJData::Color(Row.TopColor);
+	const FLinearColor SideColor = YJJData::Color(Row.SideColor);
+	if (Row.Kind.Equals(TEXT("Rock"), ESearchCase::IgnoreCase))
+	{
+		Rock(At, Row.A, Top, Row.Seed);
+	}
+	else if (Row.Kind.Equals(TEXT("Box"), ESearchCase::IgnoreCase))
+	{
+		Box(At, FVector(Row.A, Row.B, Row.C), Top, SideColor, Row.Yaw * Side);
+	}
+	else if (Row.Kind.Equals(TEXT("Tree"), ESearchCase::IgnoreCase))
+	{
+		Tree(At, Row.C, SideColor, Top, Row.Seed);
+	}
+	else
+	{
+		Frustum(At, Row.A, Row.B, Row.C, Row.Sides, Top, SideColor, Row.Jitter, Row.Seed, Row.Yaw * Side);
+	}
+}
+
+void FYJJLowPoly::AddModel(const FString& Model, const FVector& Origin)
+{
+	for (const FYJJLowPolyRow* Row : YJJData::LowPoly(Model))
+	{
+		AddRow(*Row, Origin, 1.f);
+		if (Row->Mirror)
+		{
+			AddRow(*Row, Origin, -1.f);
+		}
 	}
 }
 
