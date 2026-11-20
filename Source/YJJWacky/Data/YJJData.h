@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Data/YJJTypes.h"
@@ -54,6 +54,10 @@ struct FYJJEnemyRow : public FTableRowBase
 	/** sRGB 16진수 (예: E5484D) */
 	UPROPERTY(EditAnywhere)
 	FString Color = TEXT("E5484D");
+
+	/** 피부색 (Colors.csv 이름 또는 16진수). Parts.csv 색 칸의 Skin */
+	UPROPERTY(EditAnywhere)
+	FString Skin = TEXT("Skin");
 
 	UPROPERTY(EditAnywhere)
 	FString Note;
@@ -441,8 +445,19 @@ struct FYJJSceneryRow : public FTableRowBase
 	UPROPERTY(EditAnywhere) float Y = 0.f;
 	/** 섬 반지름 */
 	UPROPERTY(EditAnywhere) float Radius = 0.f;
-	/** 섬 윗면 높이 */
+	/** 섬 윗면 높이 (Prop: 놓는 높이) */
 	UPROPERTY(EditAnywhere) float Height = 0.f;
+
+	/** Kind = Prop 일 때 Parts.csv 모델 이름 */
+	UPROPERTY(EditAnywhere)
+	FString Model;
+
+	UPROPERTY(EditAnywhere) float Yaw = 0.f;
+	UPROPERTY(EditAnywhere) float Scale = 1.f;
+
+	/** X, Y 기준점: World(원점), Base(푸딩 자리), Spawn(적 출발점) */
+	UPROPERTY(EditAnywhere)
+	FString Anchor = TEXT("World");
 
 	UPROPERTY(EditAnywhere)
 	FString Note;

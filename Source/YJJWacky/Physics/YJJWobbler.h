@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Data/YJJData.h"
@@ -108,6 +108,9 @@ public:
 	/** 길을 따라 얼마나 왔나 (cm) */
 	float GetProgress() const { return Progress; }
 
+	/** 전시용: 길을 걷지 않고 Spot 에 서서 Facing 쪽을 본다 (자동 테스트 gallery) */
+	void Showcase(const FVector& Spot, const FVector& Facing);
+
 	/** 몽둥이에 연달아 맞지 않게 */
 	float LastClubHitTime = TNumericLimits<float>::Lowest();
 
@@ -162,6 +165,8 @@ private:
 	/** 죽으면 색이 바래는 몸 조각들 */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> Skin;
+	/** Skin 부품의 본래 색 (같은 순서) */
+	TArray<FLinearColor> SkinColors;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> Pupils;
@@ -176,6 +181,8 @@ private:
 	float Lateral = 0.f;
 	FVector Post = FVector::ZeroVector;
 	float Progress = 0.f;
+	bool bShowcase = false;
+	FVector ShowFacing = FVector::ForwardVector;
 
 	bool bReady = false;
 	bool bDead = false;

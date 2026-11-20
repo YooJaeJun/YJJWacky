@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Core/YJJGame.h"
@@ -45,6 +45,9 @@ private:
 	void BuildGround();
 	void BuildPudding();
 	void BuildScenery();
+	/** Scenery.csv Kind = Prop 줄: Parts.csv 모델(성, 진영, 집, 풍차...)을 세운다 */
+	void BuildProps();
+	static FVector AnchorOf(const FString& Anchor);
 	void BuildIsle(FYJJLowPoly& Mesh, const FVector& Top, float Radius, int32 Seed);
 	void BuildRocks(FYJJLowPoly& Mesh);
 	void AddCollisionBox(const FVector& Center, const FVector& Size, float YawDeg);
@@ -54,6 +57,9 @@ private:
 	static constexpr float FlatThickness = 0.04f;
 	/** 충돌 상자·원판 두께(cm). 윗면이 길 높이(0)와 맞게 반만큼 내린다 */
 	static constexpr float ColliderThickness = 120.f;
+	static constexpr const TCHAR* PropKind = TEXT("Prop");
+	static constexpr const TCHAR* BaseAnchor = TEXT("Base");
+	static constexpr const TCHAR* SpawnAnchor = TEXT("Spawn");
 
 	UPROPERTY()
 	TObjectPtr<UDirectionalLightComponent> Sun;

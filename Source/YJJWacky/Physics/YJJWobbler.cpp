@@ -1,4 +1,4 @@
-#include "Physics/YJJWobbler.h"
+﻿#include "Physics/YJJWobbler.h"
 
 #include "Components/CapsuleComponent.h"
 #include "Components/SphereComponent.h"
@@ -344,6 +344,7 @@ void AYJJWobbler::BuildLooks()
 	Context.ClubScale = YJJData::Tower(EYJJTowerType::Guard).ParamA(Level);
 	Context.Body = Spec(Kind).LinearColor();
 	Context.Dark = YJJShapes::Shade(Context.Body, Tun().DarkShade);
+	Context.Skin = YJJData::Color(Spec(Kind).Skin);
 
 	const FYJJModelParts Body = YJJShapes::BuildModel(this, TEXT("Wobbler"), Context);
 	const FString Hat = FString(TEXT("Wobbler.")) + StaticEnum<EYJJWobblerKind>()->GetNameStringByValue(static_cast<int64>(Kind));
@@ -351,12 +352,21 @@ void AYJJWobbler::BuildLooks()
 
 	Skin.Append(Body.Skin);
 	Skin.Append(HatParts.Skin);
+	SkinColors.Append(Body.SkinColors);
+	SkinColors.Append(HatParts.SkinColors);
 	Pupils = Body.Meshes(TEXT("Pupil"));
 	PupilBase.Reset();
 	for (const UStaticMeshComponent* Pupil : Pupils)
 	{
 		PupilBase.Add(Pupil->GetRelativeLocation());
 	}
+}
+
+void AYJJWobbler::Showcase(const FVector& Spot, const FVector& Facing)
+{
+	bShowcase = true;
+	Post = Spot;
+	ShowFacing = Facing.GetSafeNormal2D();
 }
 
 // ============================================================ 맞기
@@ -537,13 +547,12 @@ void AYJJWobbler::Die(bool bDrowned)
 	if (!bDrowned)
 	{
 		// 축 늘어지고 색이 바랜다
-		const FLinearColor Pale = FMath::Lerp(Spec(Kind).LinearColor(), YJJData::Color(TEXT("Pale")), Tun().DeadPale);
-		UMaterialInterface* Material = YJJShapes::Solid(this, Pale);
-		for (UStaticMeshComponent* Mesh : Skin)
+		const FLinearColor Pale = YJJData::Color(TEXT("Pale"));
+		for (int32 i = 0; i < Skin.Num() && i < SkinColors.Num(); ++i)
 		{
-			if (Mesh)
+			if (Skin[i])
 			{
-				Mesh->SetMaterial(0, Material);
+				Skin[i]->SetMaterial(0, YJJShapes::Solid(this, FMath::Lerp(SkinColors[i], Pale, Tun().DeadPale)));
 			}
 		}
 		YJJAudio::Play(this, TEXT("Pop"), GetBodyLocation(), 1.f / FMath::Sqrt(S));
@@ -707,7 +716,13 @@ void AYJJWobbler::Tick(float DeltaTime)
 	// 어디로 갈까
 	FVector DesiredVelocity = FVector::ZeroVector;
 	FVector Facing = Torso->GetForwardVector().GetSafeNormal2D();
-	if (IsEnemy())
+	if (bShowcase)
+	{
+		const FVector ToPost = FVector(Post.X - Location.X, Post.Y - Location.Y, 0.f);
+		DesiredVelocity = (ToPost * T.PostGain).GetClampedToMaxSize(Spec(Kind).Speed);
+		Facing = ShowFacing;
+	}
+	else if (IsEnemy())
 	{
 		FVector Closest;
 		float Offset = 0.f;

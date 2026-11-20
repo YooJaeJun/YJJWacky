@@ -1,14 +1,22 @@
-﻿Name,Kind,X,Y,Radius,Height,Note
-Isle1,Isle,-2400,1300,560,60,먼 섬 (Height = 윗면 높이)
-Isle2,Isle,200,2000,520,120,
-Isle3,Isle,2900,-300,500,30,
-Isle4,Isle,2800,1600,470,150,
-Isle5,Isle,-500,-2200,540,90,
-Isle6,Isle,1800,-2300,480,40,
-Isle7,Isle,-3500,-2100,500,110,
-Isle8,Isle,-3800,200,440,60,
-Yard1,YardTree,-400,200,0,240,"푸딩 뒤뜰 나무 (푸딩 자리 기준, Height = 나무 높이)"
-Yard2,YardTree,390,230,0,240,
-Yard3,YardTree,-260,400,0,240,
-Yard4,YardTree,220,420,0,240,
-Yard5,YardTree,0,460,0,240,
+﻿Name,Kind,X,Y,Radius,Height,Model,Yaw,Scale,Anchor,Note
+Isle1,Isle,-2400,1300,560,60,,0,1,World,먼 섬 (Height = 윗면 높이)
+Isle2,Isle,200,2000,520,120,,0,1,World,
+Isle3,Isle,2900,-300,500,30,,0,1,World,
+Isle4,Isle,2800,1600,470,150,,0,1,World,
+Isle5,Isle,-500,-2200,540,90,,0,1,World,
+Isle6,Isle,1800,-2300,480,40,,0,1,World,
+Isle7,Isle,-3500,-2100,500,110,,0,1,World,
+Isle8,Isle,-3800,200,440,60,,0,1,World,
+Castle,Prop,0,0,0,0,Prop.Castle,0,1,Base,푸딩 성 (푸딩 자리 기준)
+EnemyGate,Prop,0,0,0,0,Prop.EnemyGate,0,1,Spawn,적 진영 문 (출발점 기준)
+Cottage1,Prop,-2300,1180,0,60,Prop.Cottage,25,1,World,섬 위 오두막 (Height = 섬 윗면)
+Cottage2,Prop,2750,1520,0,150,Prop.Cottage,-40,0.9,World,
+Windmill,Prop,260,1940,0,120,Prop.Windmill,200,1,World,먼 섬 풍차
+Keep,Prop,-420,-2150,0,90,Prop.Keep,15,1,World,옛 성채
+Tents,Prop,-3800,200,0,60,Prop.Tents,0,1,World,적 막사 섬
+Watch,Prop,1800,-2300,0,40,Prop.EnemyGate,90,0.7,World,먼 섬 망루
+Corner1,Prop,-795,-1005,0,0,Prop.Corner,0,1,World,길 모퉁이 바깥 횃불 (몹이 걷는 줄 밖)
+Corner2,Prop,-1205,605,0,0,Prop.Corner,90,1,World,
+Corner3,Prop,405,605,0,0,Prop.Corner,180,1,World,
+Corner4,Prop,-5,-1005,0,0,Prop.Corner,270,1,World,
+Corner5,Prop,1605,-1005,0,0,Prop.Corner,0,1,World,

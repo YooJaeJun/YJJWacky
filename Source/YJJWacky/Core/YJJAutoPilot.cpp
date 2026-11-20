@@ -1,4 +1,4 @@
-#include "Core/YJJAutoPilot.h"
+﻿#include "Core/YJJAutoPilot.h"
 
 #include "Core/YJJGame.h"
 #include "Engine/World.h"
@@ -8,6 +8,8 @@
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Paths.h"
+#include "Data/YJJData.h"
+#include "Physics/YJJWobbler.h"
 #include "Player/YJJCommander.h"
 #include "UnrealClient.h"
 #include "World/YJJMap.h"
@@ -131,6 +133,10 @@ void UYJJAutoPilot::StartAutoPlay()
 
 	Add(SettleTime, [] {});
 	Add(ShotWait, [this] { Shot(TEXT("Play_00_Arena")); });
+	if (Tests.Contains(TEXT("gallery")))	// 모양 확인용: 이름을 적었을 때만
+	{
+		AddGalleryTest();
+	}
 	if (Wants(TEXT("walk")) && YJJMap::Path().Num() > 0)
 	{
 		AddWalkTest(YJJMap::Path()[0]);
@@ -156,6 +162,97 @@ void UYJJAutoPilot::StartAutoPlay()
 			Passed, Failed, FrameCount / FMath::Max(FrameTime, MinMeasureTime), WorstFrame * MillisecondsPerSecond);
 	});
 	UE_LOG(LogYJJWacky, Display, TEXT("[AutoPilot] start (%d steps)"), Steps.Num());
+}
+
+FVector UYJJAutoPilot::GallerySpot(int32 Index)
+{
+	// 옆 놈과 몸 크기만큼 띄운다 (왕이 기사를 가리지 않게)
+	const TArray<FVector>& Path = YJJMap::Path();
+	float Along = GalleryStart;
+	for (int32 i = 1; i <= Index; ++i)
+	{
+		Along += GalleryGap * (AYJJWobbler::Spec(static_cast<EYJJWobblerKind>(i - 1)).Scale + AYJJWobbler::Spec(static_cast<EYJJWobblerKind>(i)).Scale) * 0.5f;
+	}
+	return Path[0] + (Path[1] - Path[0]).GetSafeNormal2D() * Along;
+}
+
+void UYJJAutoPilot::AddGalleryTest()
+{
+	UYJJGame* Game = UYJJGame::Get(GetWorld());
+	const TArray<FVector>& Path = YJJMap::Path();
+	if (!Game || Path.Num() < 2)
+	{
+		return;
+	}
+	const FVector Along = (Path[1] - Path[0]).GetSafeNormal2D();
+	const FVector Toward(-Along.Y, Along.X, 0.f);	// 카메라 쪽
+	const int32 Kinds = static_cast<int32>(EYJJWobblerKind::Guard) + 1;
+	const float CameraYaw = (-Toward).Rotation().Yaw;
+
+	Add(SetupWait, [this, Game, Kinds, Toward] {
+		Game->DebugReset(TestGold, true);
+		Game->SetPhotoMode(true);
+		for (int32 i = 0; i < Kinds; ++i)
+		{
+			const EYJJWobblerKind Kind = static_cast<EYJJWobblerKind>(i);
+			const float Scale = AYJJWobbler::Spec(Kind).Scale;
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			const FVector Spot = GallerySpot(i);
+			AYJJWobbler* Model = GetWorld()->SpawnActor<AYJJWobbler>(AYJJWobbler::StaticClass(),
+				Spot + FVector(0, 0, YJJData::Tune(TEXT("Body.HoverHeight")) * Scale + GalleryLift), Toward.Rotation(), Params);
+			Model->Setup(Kind, 0.f, Spot, Kind == EYJJWobblerKind::Guard ? YJJMaxTowerLevel : 1);
+			Model->Showcase(Spot, Toward);
+			GalleryModels.Add(Model);
+		}
+	});
+	const FVector Middle = (GallerySpot(0) + GallerySpot(Kinds - 1)) * 0.5f + FVector(0, 0, GalleryFocusHeight * GalleryWideLift);
+	Add(GalleryStandTime, [this, Middle, CameraYaw] { View(Middle, CameraYaw, GalleryPitch, GalleryWideDistance); });
+	Add(ShotWait, [this] { Shot(TEXT("Play_G0_Lineup")); });
+	for (int32 i = 0; i < Kinds; ++i)
+	{
+		const float Scale = AYJJWobbler::Spec(static_cast<EYJJWobblerKind>(i)).Scale;
+		const FVector Focus = GallerySpot(i) + FVector(0, 0, GalleryFocusHeight * Scale);
+		Add(ShortWait, [this, Focus, CameraYaw, Scale] { View(Focus, CameraYaw + GalleryCloseYaw, GalleryPitch, GalleryCloseDistance * Scale); });
+		Add(ShotWait, [this, i] { Shot(FString::Printf(TEXT("Play_G1_%s"), *StaticEnum<EYJJWobblerKind>()->GetNameStringByValue(i))); });
+	}
+
+	// 타워 다섯 종: Lv1 -> Lv3
+	for (int32 Level = 1; Level <= GalleryTowerLevel; Level += GalleryTowerLevel - 1)
+	{
+		Add(SetupWait, [this, Game, Level] {
+			Game->DebugReset(TestGold * YJJTowerTypeCount * GalleryTowerLevel, true);
+			for (int32 t = 0; t < YJJTowerTypeCount && t < YJJMap::Pads().Num(); ++t)
+			{
+				Game->Build(t, static_cast<EYJJTowerType>(t));
+				for (int32 Up = 1; Up < Level; ++Up)
+				{
+					Game->Upgrade(t);
+				}
+			}
+		});
+		Add(GalleryBuildWait, [] {});
+		for (int32 t = 0; t < YJJTowerTypeCount && t < YJJMap::Pads().Num(); ++t)
+		{
+			const YJJMap::FPad& Pad = YJJMap::Pads()[t];
+			const float Yaw = (-Pad.Facing).Rotation().Yaw + GalleryTowerYaw;
+			Add(ShortWait, [this, Pad, Yaw] { View(Pad.Location + FVector(0, 0, GalleryTowerHeight), Yaw, GalleryTowerPitch, GalleryTowerDistance); });
+			Add(ShotWait, [this, t, Level] { Shot(FString::Printf(TEXT("Play_G2_Tower%d_Lv%d"), t, Level)); });
+		}
+	}
+	Add(ShortWait, [this, Game] {
+		for (const TWeakObjectPtr<AActor>& Model : GalleryModels)
+		{
+			if (Model.IsValid())
+			{
+				Model->Destroy();
+			}
+		}
+		GalleryModels.Reset();
+		Game->DebugReset(TestGold, true);
+		Game->SetPhotoMode(false);
+		ViewOverview();
+	});
 }
 
 void UYJJAutoPilot::AddWalkTest(const FVector& Start)

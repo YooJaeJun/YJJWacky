@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Data/YJJData.h"
@@ -110,7 +110,13 @@ public:
 	/** 테스트용: 골드를 정하고, bClear면 적과 타워를 모두 치운다 */
 	void DebugReset(int32 InGold, bool bClear);
 
+	/** 사진 모드: HUD 를 그리지 않는다 (자동 테스트 gallery, 개발 영상용 장면) */
+	void SetPhotoMode(bool bOn) { bPhotoMode = bOn; }
+	bool IsPhotoMode() const { return bPhotoMode; }
+
 private:
+	bool bPhotoMode = false;
+
 	struct FSpawn
 	{
 		float Time;

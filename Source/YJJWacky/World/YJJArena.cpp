@@ -1,4 +1,4 @@
-#include "World/YJJArena.h"
+﻿#include "World/YJJArena.h"
 
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
@@ -78,7 +78,7 @@ void AYJJArena::AddCollisionBox(const FVector& Center, const FVector& Size, floa
 
 void AYJJArena::AddCollisionDisc(const FVector& TopCenter, float Radius)
 {
-	UStaticMeshComponent* Disc = YJJShapes::Add(this, RootComponent, EYJJShape::Cylinder, TopCenter - FVector(0, 0, ColliderThickness * 0.5f),
+	UStaticMeshComponent* Disc = YJJShapes::Add(this, RootComponent, EYJJShape::Disc, TopCenter - FVector(0, 0, ColliderThickness * 0.5f),
 		FVector(Radius * 2.f, Radius * 2.f, ColliderThickness), nullptr, true);
 	Disc->SetHiddenInGame(true);
 	Disc->SetCastShadow(false);
@@ -91,14 +91,15 @@ void AYJJArena::BeginPlay()
 	BuildGround();
 	BuildPudding();
 	BuildScenery();
+	BuildProps();
 
 	// 발판 강조 고리와 사거리 표시
 	PadRingMaterial = YJJShapes::Unlit(this, Color(TEXT("HighlightValid")), Tune(TEXT("Highlight.PadOpacity")));
 	const float Ring = YJJMap::PadRadius() * 2.f + Tune(TEXT("Highlight.PadRingExtra"));
-	PadRing = YJJShapes::Add(this, RootComponent, EYJJShape::Cylinder, FVector::ZeroVector, FVector(Ring, Ring, Tune(TEXT("Highlight.PadRingHeight"))), PadRingMaterial);
+	PadRing = YJJShapes::Add(this, RootComponent, EYJJShape::Disc, FVector::ZeroVector, FVector(Ring, Ring, Tune(TEXT("Highlight.PadRingHeight"))), PadRingMaterial);
 	PadRing->SetVisibility(false);
 	RangeRingMaterial = YJJShapes::Unlit(this, Color(TEXT("HighlightValid")), Tune(TEXT("Highlight.RangeOpacity")));
-	RangeRing = YJJShapes::Add(this, RootComponent, EYJJShape::Cylinder, FVector::ZeroVector, FVector(YJJShapes::MeshSize), RangeRingMaterial);
+	RangeRing = YJJShapes::Add(this, RootComponent, EYJJShape::Disc, FVector::ZeroVector, FVector(YJJShapes::MeshSize), RangeRingMaterial);
 	RangeRing->SetVisibility(false);
 	RangeStrip = YJJShapes::Add(this, RootComponent, EYJJShape::Cube, FVector::ZeroVector, FVector(YJJShapes::MeshSize), RangeRingMaterial);
 	RangeStrip->SetVisibility(false);
@@ -166,8 +167,6 @@ void AYJJArena::BuildGround()
 		AddCollisionDisc(Pad.Location, YJJMap::PadRadius());
 	}
 
-	// 적 진영 문 (LowPoly.csv Gate, 출발점 기준)
-	Mesh.AddModel(TEXT("Gate"), Path[0]);
 	Mesh.Build(this, RootComponent, this);
 
 	// 물
@@ -260,6 +259,32 @@ void AYJJArena::BuildScenery()
 	}
 	BuildRocks(Mesh);
 	Mesh.Build(this, RootComponent, this);
+}
+
+FVector AYJJArena::AnchorOf(const FString& Anchor)
+{
+	if (Anchor.Equals(BaseAnchor, ESearchCase::IgnoreCase))
+	{
+		return YJJMap::BaseLocation();
+	}
+	if (Anchor.Equals(SpawnAnchor, ESearchCase::IgnoreCase) && YJJMap::Path().Num() > 0)
+	{
+		return YJJMap::Path()[0];
+	}
+	return FVector::ZeroVector;
+}
+
+void AYJJArena::BuildProps()
+{
+	for (const FYJJSceneryRow* Row : YJJData::Scenery(PropKind))
+	{
+		const FVector At = AnchorOf(Row->Anchor) + FVector(Row->X, Row->Y, Row->Height);
+		USceneComponent* Pivot = YJJShapes::AddPivot(this, RootComponent, At, FRotator(0.f, Row->Yaw, 0.f));
+		FYJJModelContext Context;
+		Context.Parents.Add(FName(TEXT("Root")), Pivot);
+		Context.Scale = Row->Scale;
+		YJJShapes::BuildModel(this, Row->Model, Context);
+	}
 }
 
 void AYJJArena::WobblePudding(float Strength)

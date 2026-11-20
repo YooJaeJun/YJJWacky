@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
@@ -11,17 +11,30 @@ class UProceduralMeshComponent;
 class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
+struct FYJJLowPoly;
 struct FYJJLowPolyRow;
 struct FYJJPartRow;
 
-/** 엔진 기본 도형 (모두 100cm 크기, 피벗은 가운데) */
+/**
+ * 부품 도형 (모두 100cm 상자에 꽉 차고, 피벗은 가운데).
+ * Cube·Plane·Disc 는 엔진 기본 도형, 나머지는 면이 각진 로우폴리를 게임이 직접 만든다 (TABS 처럼 각진 맛).
+ */
 enum class EYJJShape : uint8
 {
 	Cube,
-	Sphere,
-	Cylinder,
-	Cone,
+	Sphere,		// 각진 공 (머리, 손, 배)
+	Cylinder,	// 팔각 기둥 (팔다리, 기둥)
+	Cone,		// 팔각 원뿔 (고깔, 지붕)
 	Plane,
+	Disc,		// 매끈한 엔진 원기둥 (사거리 원, 충돌 원판)
+	Dome,		// 반구: 아래가 평평 (투구, 지붕, 배)
+	Prism,		// 삼각 기둥: XZ 단면이 이등변 삼각형, Y 로 뻗음 (지붕, 코, 칼날)
+	Wedge,		// 직각 삼각 기둥: 앞(+X)이 낮은 비탈 (망토, 쐐기)
+	Taper,		// 팔각 원뿔대: 위가 좁다 (몸통, 치마, 양동이)
+	Trapezoid,	// 사다리꼴 상자: 아래가 좁다 (어깨 넓은 몸통, 방패)
+	Pyramid,	// 사각뿔 (징, 지붕)
+	Tube,		// 속이 빈 팔각 고리 (왕관 테, 바퀴 테, 허리띠)
+	Count,
 };
 
 /** 색마다 머티리얼 인스턴스를 하나만 만들어 돌려 쓴다 (흐느적이 수십 마리가 같은 색을 쓴다) */
@@ -53,17 +66,19 @@ struct FYJJModelContext
 	int32 Level = 1;
 	/** ScaleBy = Club 인 Pivot의 배율 */
 	float ClubScale = 1.f;
-	/** 색 칸에 Body / Dark 라고 쓴 부품의 색 */
+	/** 색 칸에 Body / Dark / Skin 이라고 쓴 부품의 색 (옷 색, 옷 그림자 색, 피부색) */
 	FLinearColor Body = FLinearColor::White;
 	FLinearColor Dark = FLinearColor::White;
+	FLinearColor Skin = FLinearColor::White;
 };
 
 /** Parts.csv 로 지은 모델: Tag 이름으로 부품을 찾는다 */
 struct FYJJModelParts
 {
 	TMap<FName, TArray<USceneComponent*>> Tagged;
-	/** Skin = 1 인 부품 (죽으면 색이 바랜다) */
+	/** Skin = 1 인 부품 (죽으면 색이 바랜다)와 그 본래 색 */
 	TArray<UStaticMeshComponent*> Skin;
+	TArray<FLinearColor> SkinColors;
 
 	USceneComponent* First(const TCHAR* Tag) const;
 	UStaticMeshComponent* FirstMesh(const TCHAR* Tag) const;
@@ -75,7 +90,7 @@ class YJJShapes
 {
 public:
 	static UStaticMesh* Mesh(EYJJShape Shape);
-	/** Cube, Sphere, Cylinder, Cone, Plane */
+	/** EYJJShape 이름 (Cube, Sphere, Cylinder, Cone, Plane, Disc, Dome, Prism, Wedge, Taper, Trapezoid, Pyramid, Tube) */
 	static EYJJShape ParseShape(const FString& Name);
 
 	/** 단색 표면. 같은 색은 같은 인스턴스를 돌려준다 */
@@ -108,9 +123,11 @@ private:
 	static constexpr const TCHAR* FallbackMaterial = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
 	static constexpr const TCHAR* BodyColorName = TEXT("Body");
 	static constexpr const TCHAR* DarkColorName = TEXT("Dark");
+	static constexpr const TCHAR* SkinColorName = TEXT("Skin");
 	static constexpr const TCHAR* PivotType = TEXT("Pivot");
 	static constexpr const TCHAR* RootParent = TEXT("Root");
 	static constexpr const TCHAR* RollAxis = TEXT("Roll");
+	static constexpr const TCHAR* PitchAxis = TEXT("Pitch");
 	static constexpr const TCHAR* ClubScaleName = TEXT("Club");
 
 	// PCG 계열 정수 해시 상수
@@ -122,7 +139,43 @@ private:
 	static constexpr uint32 HashFinalShift = 22u;
 	static constexpr uint32 HashMask = 0xFFFFFFu;
 
+	// 각진 도형 (100cm 상자 기준)
+	static constexpr float HalfSize = MeshSize * 0.5f;
+	static constexpr int32 BallSegments = 10;
+	static constexpr int32 BallRings = 6;
+	static constexpr int32 DomeRings = 3;
+	static constexpr int32 RoundSides = 8;
+	/** 팔각형 면 하나가 정면을 보게 (반 칸 돌림) */
+	static constexpr float RoundYaw = 22.5f;
+	static constexpr float TaperTop = 0.62f;
+	static constexpr float TrapezoidBottomX = 0.72f;
+	static constexpr float TrapezoidBottomY = 0.8f;
+	static constexpr int32 PyramidSides = 4;
+	static constexpr float PyramidYaw = 45.f;
+	static constexpr int32 TubeSides = 12;
+	static constexpr float TubeInner = 0.74f;
+	static constexpr const TCHAR* FacetedSlot = TEXT("Flat");
+	/** EYJJShape 순서대로 */
+	static constexpr const TCHAR* ShapeNames[static_cast<int32>(EYJJShape::Count)] = {
+		TEXT("Cube"), TEXT("Sphere"), TEXT("Cylinder"), TEXT("Cone"), TEXT("Plane"), TEXT("Disc"), TEXT("Dome"),
+		TEXT("Prism"), TEXT("Wedge"), TEXT("Taper"), TEXT("Trapezoid"), TEXT("Pyramid"), TEXT("Tube") };
+
 	static UMaterialInstanceDynamic* MakeMID(UObject* Outer, const TCHAR* Path);
+	/** 각진 도형을 만들어 둔다 (한 번만, GC 루트) */
+	static UStaticMesh* Faceted(EYJJShape Shape);
+	static void BuildFacetedGeometry(EYJJShape Shape, FYJJLowPoly& Poly);
+	/** 닫힌 다각 원뿔대 (Z -50~50) */
+	static void AddRound(FYJJLowPoly& Poly, float BottomRadius, float TopRadius, int32 Sides, float YawDeg);
+	/** 각진 공. bHalf 면 아래가 평평한 반구 (Z -50~50 에 꽉 차게) */
+	static void AddBall(FYJJLowPoly& Poly, bool bHalf);
+	static FVector BallPoint(int32 Ring, int32 Segment, int32 Rings, bool bHalf);
+	/** XZ 단면 다각형을 Y 로 -50~50 밀어낸 기둥 */
+	static void AddExtrusion(FYJJLowPoly& Poly, const TArray<FVector2D>& Profile);
+	static void AddTrapezoid(FYJJLowPoly& Poly);
+	static void AddTube(FYJJLowPoly& Poly);
+	/** 삼각형들을 런타임 스태틱 메시로 굽는다 (충돌은 100cm 상자) */
+	static UStaticMesh* Bake(const FYJJLowPoly& Poly, const TCHAR* Name);
+
 	static FLinearColor PartColor(const FString& Name, const FYJJModelContext& Context);
 	static void BuildPart(AActor* Owner, const FYJJPartRow& Row, FYJJModelContext& Context, FYJJModelParts& Out);
 
@@ -147,6 +200,7 @@ private:
 	}
 
 	static TMap<FString, TWeakObjectPtr<UObject>> AssetCache;
+	static TWeakObjectPtr<UStaticMesh> FacetedCache[static_cast<int32>(EYJJShape::Count)];
 };
 
 /**

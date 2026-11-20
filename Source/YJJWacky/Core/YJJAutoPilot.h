@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Data/YJJTypes.h"
@@ -62,6 +62,10 @@ private:
 	void AddUpgradeTests();
 	void AddStressTest();
 	void AddWaveTest();
+	/** 몹 여섯 종을 한 줄로 세우고, 타워 다섯 종을 Lv1·Lv3 로 지어 가까이서 찍는다 (모양 확인용, 판정 없음) */
+	void AddGalleryTest();
+	/** 전시 줄의 Index 번째 자리 */
+	static FVector GallerySpot(int32 Index);
 
 	static FAutoConsoleCommandWithWorld PlayCommand;
 	static FAutoConsoleCommandWithWorldAndArgs GoldCommand;
@@ -139,6 +143,30 @@ private:
 	static constexpr float StressMeasure = 6.f;
 	static constexpr float StressMinFps = 45.f;
 
+	// ---------------------------------------------------------------- 전시
+	/** 첫 길(P0 -> P1) 위, 출발점에서 이만큼 떨어진 곳부터 한 줄로 */
+	static constexpr float GalleryStart = 420.f;
+	/** 크기 1 당 옆 놈과의 간격 */
+	static constexpr float GalleryGap = 175.f;
+	static constexpr float GalleryLift = 40.f;
+	static constexpr float GalleryStandTime = 3.5f;
+	static constexpr float GalleryWideDistance = 1500.f;
+	/** 크기 1 당 거리 (한 종씩 가까이) */
+	static constexpr float GalleryCloseDistance = 380.f;
+	/** 가까이 찍을 때 살짝 비스듬히 */
+	static constexpr float GalleryCloseYaw = -18.f;
+	static constexpr float GalleryPitch = -8.f;
+	/** 다 같이 찍을 때 바라보는 높이 배율 (왕 머리까지) */
+	static constexpr float GalleryWideLift = 2.2f;
+	/** 크기 1 당 바라보는 높이 */
+	static constexpr float GalleryFocusHeight = 60.f;
+	static constexpr int32 GalleryTowerLevel = 3;
+	static constexpr float GalleryTowerDistance = 1000.f;
+	static constexpr float GalleryTowerPitch = -18.f;
+	static constexpr float GalleryTowerYaw = 35.f;
+	static constexpr float GalleryTowerHeight = 120.f;
+	static constexpr float GalleryBuildWait = 1.5f;
+
 	// ---------------------------------------------------------------- 웨이브
 	static constexpr int32 DefaultWaveGoal = 3;
 	static constexpr float WaveShotGap = 9.f;
@@ -154,6 +182,9 @@ private:
 	static constexpr int32 WishFirstPad = 2;
 	/** 강화하고도 이만큼은 남긴다 */
 	static constexpr int32 UpgradeReserve = 60;
+
+	/** 전시용으로 세운 흐느적이 (끝나면 치운다. 병사는 게임이 따로 세지 않는다) */
+	TArray<TWeakObjectPtr<AActor>> GalleryModels;
 
 	TArray<FStep> Steps;
 	int32 StepIndex = INDEX_NONE;

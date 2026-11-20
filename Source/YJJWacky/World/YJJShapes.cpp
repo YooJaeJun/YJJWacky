@@ -1,6 +1,8 @@
-#include "World/YJJShapes.h"
+﻿#include "World/YJJShapes.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "StaticMeshAttributes.h"
 #include "Data/YJJData.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -12,6 +14,7 @@
 #include "YJJWacky.h"
 
 TMap<FString, TWeakObjectPtr<UObject>> YJJShapes::AssetCache;
+TWeakObjectPtr<UStaticMesh> YJJShapes::FacetedCache[static_cast<int32>(EYJJShape::Count)];
 
 UMaterialInstanceDynamic* UYJJPalette::Solid(const FLinearColor& Color, float Emissive)
 {
@@ -78,21 +81,258 @@ UStaticMesh* YJJShapes::Mesh(EYJJShape Shape)
 	switch (Shape)
 	{
 	case EYJJShape::Cube: return LoadCached<UStaticMesh>(YJJAssetPaths::Cube);
-	case EYJJShape::Sphere: return LoadCached<UStaticMesh>(YJJAssetPaths::Sphere);
-	case EYJJShape::Cylinder: return LoadCached<UStaticMesh>(YJJAssetPaths::Cylinder);
-	case EYJJShape::Cone: return LoadCached<UStaticMesh>(YJJAssetPaths::Cone);
 	case EYJJShape::Plane: return LoadCached<UStaticMesh>(YJJAssetPaths::Plane);
+	case EYJJShape::Disc: return LoadCached<UStaticMesh>(YJJAssetPaths::Cylinder);
+	default: return Faceted(Shape);
 	}
-	return nullptr;
 }
 
 EYJJShape YJJShapes::ParseShape(const FString& Name)
 {
-	if (Name.Equals(TEXT("Sphere"), ESearchCase::IgnoreCase)) { return EYJJShape::Sphere; }
-	if (Name.Equals(TEXT("Cylinder"), ESearchCase::IgnoreCase)) { return EYJJShape::Cylinder; }
-	if (Name.Equals(TEXT("Cone"), ESearchCase::IgnoreCase)) { return EYJJShape::Cone; }
-	if (Name.Equals(TEXT("Plane"), ESearchCase::IgnoreCase)) { return EYJJShape::Plane; }
+	for (int32 i = 0; i < static_cast<int32>(EYJJShape::Count); ++i)
+	{
+		if (Name.Equals(ShapeNames[i], ESearchCase::IgnoreCase))
+		{
+			return static_cast<EYJJShape>(i);
+		}
+	}
+	UE_LOG(LogYJJWacky, Warning, TEXT("[Parts] 모르는 도형 '%s' -> Cube"), *Name);
 	return EYJJShape::Cube;
+}
+
+// ============================================================ 각진 도형
+
+UStaticMesh* YJJShapes::Faceted(EYJJShape Shape)
+{
+	const int32 Index = static_cast<int32>(Shape);
+	if (UStaticMesh* Cached = FacetedCache[Index].Get())
+	{
+		return Cached;
+	}
+	FYJJLowPoly Poly;
+	BuildFacetedGeometry(Shape, Poly);
+	UStaticMesh* Made = Bake(Poly, *FString::Printf(TEXT("SM_YJJ_%s"), ShapeNames[Index]));
+	FacetedCache[Index] = Made;
+	return Made;
+}
+
+void YJJShapes::BuildFacetedGeometry(EYJJShape Shape, FYJJLowPoly& Poly)
+{
+	const float H = HalfSize;
+	switch (Shape)
+	{
+	case EYJJShape::Sphere: AddBall(Poly, false); break;
+	case EYJJShape::Dome: AddBall(Poly, true); break;
+	case EYJJShape::Cylinder: AddRound(Poly, H, H, RoundSides, RoundYaw); break;
+	case EYJJShape::Cone: AddRound(Poly, H, 0.f, RoundSides, RoundYaw); break;
+	case EYJJShape::Taper: AddRound(Poly, H, H * TaperTop, RoundSides, RoundYaw); break;
+	// 사각뿔: 밑면 모서리가 상자 모서리에 닿게
+	case EYJJShape::Pyramid: AddRound(Poly, H * UE_SQRT_2, 0.f, PyramidSides, PyramidYaw); break;
+	case EYJJShape::Prism: AddExtrusion(Poly, { FVector2D(-H, -H), FVector2D(H, -H), FVector2D(0.f, H) }); break;
+	case EYJJShape::Wedge: AddExtrusion(Poly, { FVector2D(-H, -H), FVector2D(H, -H), FVector2D(-H, H) }); break;
+	case EYJJShape::Trapezoid: AddTrapezoid(Poly); break;
+	case EYJJShape::Tube: AddTube(Poly); break;
+	default: AddRound(Poly, H * UE_SQRT_2, H * UE_SQRT_2, PyramidSides, PyramidYaw); break;
+	}
+}
+
+void YJJShapes::AddRound(FYJJLowPoly& Poly, float BottomRadius, float TopRadius, int32 Sides, float YawDeg)
+{
+	const float H = HalfSize;
+	const FVector Bottom(0, 0, -H);
+	const FVector Top(0, 0, H);
+	TArray<FVector> Low;
+	TArray<FVector> High;
+	for (int32 i = 0; i < Sides; ++i)
+	{
+		const float A = FMath::DegreesToRadians(YawDeg) + i * UE_TWO_PI / Sides;
+		const FVector Dir(FMath::Cos(A), FMath::Sin(A), 0.f);
+		Low.Add(Bottom + Dir * BottomRadius);
+		High.Add(Top + Dir * TopRadius);
+	}
+	for (int32 i = 0; i < Sides; ++i)
+	{
+		const int32 j = (i + 1) % Sides;
+		const FVector Out = ((Low[i] + Low[j] + High[i] + High[j]) * 0.25f).GetSafeNormal2D();
+		if (TopRadius > 0.f)
+		{
+			Poly.Quad(Low[i], Low[j], High[j], High[i], FLinearColor::White, Out);
+			Poly.Tri(Top, High[i], High[j], FLinearColor::White, FVector::UpVector);
+		}
+		else
+		{
+			Poly.Tri(Low[i], Low[j], Top, FLinearColor::White, Out + FVector(0, 0, BottomRadius / (2.f * H)));
+		}
+		Poly.Tri(Bottom, Low[j], Low[i], FLinearColor::White, FVector::DownVector);
+	}
+}
+
+FVector YJJShapes::BallPoint(int32 Ring, int32 Segment, int32 Rings, bool bHalf)
+{
+	// 반구는 위도 0~90도를 Z -50~50 으로 늘린다
+	const float H = HalfSize;
+	const float Lat = bHalf ? (HALF_PI * Ring / Rings) : (-HALF_PI + PI * Ring / Rings);
+	const float Lon = FMath::DegreesToRadians(RoundYaw) + UE_TWO_PI * Segment / BallSegments;
+	const float Z = bHalf ? (-H + 2.f * H * FMath::Sin(Lat)) : H * FMath::Sin(Lat);
+	return FVector(H * FMath::Cos(Lat) * FMath::Cos(Lon), H * FMath::Cos(Lat) * FMath::Sin(Lon), Z);
+}
+
+void YJJShapes::AddBall(FYJJLowPoly& Poly, bool bHalf)
+{
+	const float H = HalfSize;
+	const int32 Rings = bHalf ? DomeRings : BallRings;
+	const FVector Center = bHalf ? FVector(0, 0, -H) : FVector::ZeroVector;
+	for (int32 r = 0; r < Rings; ++r)
+	{
+		for (int32 k = 0; k < BallSegments; ++k)
+		{
+			const FVector A = BallPoint(r, k, Rings, bHalf);
+			const FVector B = BallPoint(r, k + 1, Rings, bHalf);
+			const FVector C = BallPoint(r + 1, k + 1, Rings, bHalf);
+			const FVector D = BallPoint(r + 1, k, Rings, bHalf);
+			const FVector Out = ((A + B + C + D) * 0.25f - Center).GetSafeNormal();
+			if (r == Rings - 1)
+			{
+				Poly.Tri(A, B, C, FLinearColor::White, Out);	// 꼭대기는 한 점으로 모인다
+			}
+			else if (r == 0 && !bHalf)
+			{
+				Poly.Tri(A, C, D, FLinearColor::White, Out);	// 바닥도
+			}
+			else
+			{
+				Poly.Quad(A, B, C, D, FLinearColor::White, Out);
+			}
+		}
+	}
+	if (bHalf)
+	{
+		for (int32 k = 0; k < BallSegments; ++k)
+		{
+			Poly.Tri(Center, BallPoint(0, k + 1, Rings, bHalf), BallPoint(0, k, Rings, bHalf), FLinearColor::White, FVector::DownVector);
+		}
+	}
+}
+
+void YJJShapes::AddExtrusion(FYJJLowPoly& Poly, const TArray<FVector2D>& Profile)
+{
+	const float H = HalfSize;
+	FVector2D Mid = FVector2D::ZeroVector;
+	for (const FVector2D& P : Profile)
+	{
+		Mid += P / Profile.Num();
+	}
+	const int32 N = Profile.Num();
+	for (int32 i = 0; i < N; ++i)
+	{
+		const FVector2D& P = Profile[i];
+		const FVector2D& Q = Profile[(i + 1) % N];
+		const FVector2D Edge = (P + Q) * 0.5f - Mid;
+		const FVector Out(Edge.X, 0.f, Edge.Y);
+		Poly.Quad(FVector(P.X, -H, P.Y), FVector(Q.X, -H, Q.Y), FVector(Q.X, H, Q.Y), FVector(P.X, H, P.Y), FLinearColor::White, Out);
+	}
+	for (int32 i = 1; i + 1 < N; ++i)
+	{
+		const FVector2D& A = Profile[0];
+		const FVector2D& B = Profile[i];
+		const FVector2D& C = Profile[i + 1];
+		Poly.Tri(FVector(A.X, H, A.Y), FVector(B.X, H, B.Y), FVector(C.X, H, C.Y), FLinearColor::White, FVector::RightVector);
+		Poly.Tri(FVector(A.X, -H, A.Y), FVector(B.X, -H, B.Y), FVector(C.X, -H, C.Y), FLinearColor::White, FVector::LeftVector);
+	}
+}
+
+void YJJShapes::AddTrapezoid(FYJJLowPoly& Poly)
+{
+	const float H = HalfSize;
+	const float BX = H * TrapezoidBottomX;
+	const float BY = H * TrapezoidBottomY;
+	const FVector T[4] = { FVector(-H, -H, H), FVector(H, -H, H), FVector(H, H, H), FVector(-H, H, H) };
+	const FVector B[4] = { FVector(-BX, -BY, -H), FVector(BX, -BY, -H), FVector(BX, BY, -H), FVector(-BX, BY, -H) };
+	Poly.Quad(T[0], T[1], T[2], T[3], FLinearColor::White, FVector::UpVector);
+	Poly.Quad(B[0], B[1], B[2], B[3], FLinearColor::White, FVector::DownVector);
+	for (int32 i = 0; i < 4; ++i)
+	{
+		const int32 j = (i + 1) % 4;
+		const FVector Out = ((T[i] + T[j] + B[i] + B[j]) * 0.25f).GetSafeNormal2D();
+		Poly.Quad(B[i], B[j], T[j], T[i], FLinearColor::White, Out);
+	}
+}
+
+void YJJShapes::AddTube(FYJJLowPoly& Poly)
+{
+	const float H = HalfSize;
+	const float Inner = H * TubeInner;
+	const FVector Up(0, 0, H);
+	for (int32 i = 0; i < TubeSides; ++i)
+	{
+		const float A0 = FMath::DegreesToRadians(RoundYaw) + UE_TWO_PI * i / TubeSides;
+		const float A1 = FMath::DegreesToRadians(RoundYaw) + UE_TWO_PI * (i + 1) / TubeSides;
+		const FVector D0(FMath::Cos(A0), FMath::Sin(A0), 0.f);
+		const FVector D1(FMath::Cos(A1), FMath::Sin(A1), 0.f);
+		const FVector Out = (D0 + D1).GetSafeNormal();
+		Poly.Quad(D0 * H - Up, D1 * H - Up, D1 * H + Up, D0 * H + Up, FLinearColor::White, Out);
+		Poly.Quad(D0 * Inner - Up, D1 * Inner - Up, D1 * Inner + Up, D0 * Inner + Up, FLinearColor::White, -Out);
+		Poly.Quad(D0 * Inner + Up, D1 * Inner + Up, D1 * H + Up, D0 * H + Up, FLinearColor::White, FVector::UpVector);
+		Poly.Quad(D0 * Inner - Up, D1 * Inner - Up, D1 * H - Up, D0 * H - Up, FLinearColor::White, FVector::DownVector);
+	}
+}
+
+UStaticMesh* YJJShapes::Bake(const FYJJLowPoly& Poly, const TCHAR* Name)
+{
+	FMeshDescription Description;
+	FStaticMeshAttributes Attributes(Description);
+	Attributes.Register();
+	TVertexAttributesRef<FVector3f> Positions = Attributes.GetVertexPositions();
+	TVertexInstanceAttributesRef<FVector3f> Normals = Attributes.GetVertexInstanceNormals();
+	TVertexInstanceAttributesRef<FVector3f> Tangents = Attributes.GetVertexInstanceTangents();
+	TVertexInstanceAttributesRef<float> Signs = Attributes.GetVertexInstanceBinormalSigns();
+	TVertexInstanceAttributesRef<FVector4f> Colors = Attributes.GetVertexInstanceColors();
+	TVertexInstanceAttributesRef<FVector2f> UVs = Attributes.GetVertexInstanceUVs();
+	TPolygonGroupAttributesRef<FName> Slots = Attributes.GetPolygonGroupMaterialSlotNames();
+
+	const FPolygonGroupID Group = Description.CreatePolygonGroup();
+	Slots[Group] = FName(FacetedSlot);
+	for (int32 t = 0; t + 2 < Poly.Triangles.Num(); t += 3)
+	{
+		TArray<FVertexInstanceID> Corners;
+		for (int32 k = 0; k < 3; ++k)
+		{
+			const int32 Index = Poly.Triangles[t + k];
+			const FVertexID Vertex = Description.CreateVertex();
+			Positions[Vertex] = FVector3f(Poly.Vertices[Index]);
+			const FVertexInstanceID Instance = Description.CreateVertexInstance(Vertex);
+			const FVector N = Poly.Normals[Index];
+			const FVector Side = FMath::Abs(N.Z) < UE_HALF_SQRT_2 ? FVector::UpVector : FVector::ForwardVector;
+			Normals[Instance] = FVector3f(N);
+			Tangents[Instance] = FVector3f(FVector::CrossProduct(Side, N).GetSafeNormal());
+			Signs[Instance] = 1.f;
+			const FLinearColor& C = Poly.Colors[Index];
+			Colors[Instance] = FVector4f(C.R, C.G, C.B, 1.f);
+			UVs.Set(Instance, 0, FVector2f::ZeroVector);
+			Corners.Add(Instance);
+		}
+		Description.CreateTriangle(Group, Corners);
+	}
+
+	UStaticMesh* Mesh = NewObject<UStaticMesh>(GetTransientPackage(), FName(Name));
+	Mesh->GetStaticMaterials().Add(FStaticMaterial(LoadCached<UMaterialInterface>(YJJAssetPaths::FlatMaterial), FName(FacetedSlot), FName(FacetedSlot)));
+	UStaticMesh::FBuildMeshDescriptionsParams Params;
+	Params.bFastBuild = true;
+	Params.bBuildSimpleCollision = false;
+	Params.bCommitMeshDescription = false;
+	Params.bMarkPackageDirty = false;
+	Mesh->BuildFromMeshDescriptions({ &Description }, Params);
+
+	// 지을 때 Collide = 1 인 부품만 쓰는 단순 충돌 상자
+	Mesh->CreateBodySetup();
+	if (UBodySetup* Body = Mesh->GetBodySetup())
+	{
+		Body->CollisionTraceFlag = CTF_UseSimpleAsComplex;
+		Body->AggGeom.BoxElems.Add(FKBoxElem(MeshSize));
+		Body->CreatePhysicsMeshes();
+	}
+	Mesh->AddToRoot();
+	return Mesh;
 }
 
 UMaterialInstanceDynamic* YJJShapes::Solid(const UObject* WorldContext, const FLinearColor& Color, float Emissive)
@@ -177,6 +417,10 @@ FLinearColor YJJShapes::PartColor(const FString& Name, const FYJJModelContext& C
 	{
 		return Context.Dark;
 	}
+	if (Name.Equals(SkinColorName, ESearchCase::IgnoreCase))
+	{
+		return Context.Skin;
+	}
 	return YJJData::Color(Name);
 }
 
@@ -192,6 +436,7 @@ void YJJShapes::BuildPart(AActor* Owner, const FYJJPartRow& Row, FYJJModelContex
 	}
 	const bool bPivot = Row.Type.Equals(PivotType, ESearchCase::IgnoreCase);
 	const bool bRoll = Row.RepeatAxis.Equals(RollAxis, ESearchCase::IgnoreCase);
+	const bool bPitch = Row.RepeatAxis.Equals(PitchAxis, ESearchCase::IgnoreCase);
 	const int32 Sides = Row.Mirror ? 2 : 1;
 	const FName Tag = Row.Tag.IsEmpty() ? NAME_None : FName(*Row.Tag);
 
@@ -204,7 +449,7 @@ void YJJShapes::BuildPart(AActor* Owner, const FYJJPartRow& Row, FYJJModelContex
 		for (int32 k = 0; k < FMath::Max(1, Row.Repeat); ++k)
 		{
 			const float Step = Row.RepeatStep * k;
-			const FQuat Around = bRoll ? FRotator(0.f, 0.f, Step).Quaternion() : FRotator(0.f, Step, 0.f).Quaternion();
+			const FQuat Around = bRoll ? FRotator(0.f, 0.f, Step).Quaternion() : (bPitch ? FRotator(Step, 0.f, 0.f).Quaternion() : FRotator(0.f, Step, 0.f).Quaternion());
 			const FVector Location = Around.RotateVector(BaseLocation) * Context.Scale;
 			const FRotator Rotation = (Around * BaseRotation.Quaternion()).Rotator();
 
@@ -241,6 +486,7 @@ void YJJShapes::BuildPart(AActor* Owner, const FYJJPartRow& Row, FYJJModelContex
 				if (Row.Skin)
 				{
 					Out.Skin.Add(Mesh);
+					Out.SkinColors.Add(Color);
 				}
 				Made = Mesh;
 			}

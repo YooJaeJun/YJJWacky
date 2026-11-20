@@ -1,16 +1,16 @@
 ﻿Name,Hex,Alpha,Note
-Sand,EAD9A7,1,둑길 윗면
-Paving,DCC48A,1,모퉁이 광장
-Cliff,C4A77D,1,절벽 옆면
-Grass,9BCF5A,1,
-GrassDark,7FBF4D,1,
-Marker,F4EBD0,1,발판 자리 표시
-Stone,B9B4AE,1,
-Trunk,8B6B4A,1,
-Leaf,58A85A,1,
-LeafWarm,8DC455,1,
-SpawnGround,D9A98C,1,적이 나오는 땅
-Gate,E5484D,1,적 진영 현수막
+Sand,D9BC8C,1,흙길 윗면
+Paving,BDB3A0,1,모퉁이 자갈 광장
+Cliff,A69882,1,바위 절벽 옆면
+Grass,8CC850,1,
+GrassDark,72B347,1,
+Marker,C9C1B2,1,발판 자리 돌판
+Stone,B5AFA6,1,성벽·받침 돌
+Trunk,7D5A3C,1,
+Leaf,4F9A4E,1,
+LeafWarm,78B04A,1,
+SpawnGround,B9906C,1,적 진영 흙바닥
+Gate,B83232,1,(안 씀) 적 진영 현수막
 Sun,FFF7E7,1,햇빛
 Fog,B3D7F9,1,안개
 HighlightValid,FFFFFF,1,지을 수 있는 발판
@@ -23,11 +23,11 @@ Cherry,E11D48,1,
 Stem,4D7C0F,1,
 White,FFFFFF,1,
 Ink,15151A,1,눈동자·입
-Pale,B9B4AE,1,죽으면 이 색 쪽으로 바랜다
-CannonBall,1F2937,1,
-FanBlade1,F8FAFC,1,선풍기 날개 Lv1
-FanBlade2,93C5FD,1,Lv2
-FanBlade3,F87171,1,Lv3
+Pale,B9B4AE,1,죽으면 부품마다 이 색 쪽으로 바랜다
+CannonBall,2B2F36,1,
+FanBlade1,F3EAD8,1,풍차 돛 Lv1
+FanBlade2,8FB8E8,1,Lv2
+FanBlade3,E06A5A,1,Lv3
 Gold,FFC83D,1,"강화 구슬, 대장 왕관"
 HudInk,353C55,1,글자 외곽선·테두리
 HudPanel,3F4B69,0.8,패널 바탕
@@ -59,3 +59,50 @@ IconBlade,60A5FA,1,
 IconBlue,3B82F6,1,
 IconOrange,F97316,1,
 IconPink,FF7FA0,1,
+Skin,F2C39C,1,사람 피부
+SkinRosy,E8907A,1,왕 딸기코
+SkinGoblin,8DBF4A,1,고블린 피부
+Hair,5C3A21,1,눈썹·콧수염
+Beard,F1EFEA,1,왕 수염
+Mouth,5A1E1E,1,입
+Linen,E8DCC0,1,속옷 삼베
+Sack,C9B28A,1,보따리
+Rope,C9A66B,1,밧줄
+Straw,E6C35C,1,밀짚
+Thatch,C9A04E,1,초가 지붕
+Pants,6B4A2E,1,농민 바지
+HoseDark,3B3B4A,1,도적 바지
+HoseNavy,2E3F66,1,경비병 바지
+HoseRoyal,4C1D3D,1,왕 바지
+Leather,7A4E2D,1,가죽
+LeatherDark,4A3221,1,짙은 가죽
+Steel,B9C2CC,1,갑옷
+SteelDark,79828D,1,갑옷 그늘
+Iron,555D68,1,쇠
+IronDark,3A4049,1,
+Mail,8F98A3,1,사슬 갑옷
+Wood,A8743F,1,나무
+WoodDark,6E4626,1,짙은 나무
+Plank,C08A55,1,나무판
+Bronze,B98535,1,청동 포신
+BronzeDark,8A5E22,1,
+GoldDark,D49A1E,1,
+StoneDark,8C867C,1,
+Plaster,EFE6D2,1,회벽
+RoofRed,B84A32,1,붉은 지붕
+RoofBlue,3563B5,1,성 지붕
+BannerRed,C62F2F,1,적 깃발
+BannerBlue,2F6FD6,1,아군 깃발
+TentBlue,3C7BE0,1,병영 천막
+TentDark,2A579F,1,
+TentRed,A63A3A,1,적 막사
+CapeRoyal,6E1630,1,왕 망토
+Ermine,F4F1EA,1,흰 담비 털
+Gem,3FA9F5,1,왕관 보석
+Ruby,D11F3A,1,
+Bone,EDE6D3,1,뼈·해골
+Fire,FF8A2A,1,횃불
+IconSteelLight,C3CBD5,1,펀치 아이콘 쇠 장갑
+IconSail,F3EAD8,1,풍차 아이콘 돛
+IconSky,9FD3F7,1,풍차 아이콘 하늘
+IconGoblin,8DBF4A,1,새총 아이콘 고블린

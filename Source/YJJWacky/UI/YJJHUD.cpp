@@ -1,4 +1,4 @@
-#include "UI/YJJHUD.h"
+﻿#include "UI/YJJHUD.h"
 
 #include "CanvasItem.h"
 #include "Data/YJJLoc.h"
@@ -225,7 +225,7 @@ void AYJJHUD::DrawHUD()
 
 	const AYJJCommander* Commander = Cast<AYJJCommander>(GetOwningPlayerController());
 	const UYJJGame* Game = UYJJGame::Get(this);
-	if (!Commander || !Game)
+	if (!Commander || !Game || Game->IsPhotoMode())
 	{
 		return;
 	}
