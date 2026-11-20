@@ -40,12 +40,14 @@ Sling.BowlUp,420,
 Sling.BowlDamage,10,
 Sling.StrikeCount,3,이만큼 맞히면 스트라이크!
 Sling.HeavyHint,2.5,너무 무거운 놈만 있을 때 '무거워!' 뜨는 간격(초)
-Wobbler.HoverStiffness,190,몸통을 띄우는 스프링 (1/s²). 낮을수록 출렁
-Wobbler.HoverDamping,15,
-Wobbler.UprightStiffness,150,바로 서려는 힘. 낮을수록 비틀비틀
-Wobbler.UprightDamping,9,
-Wobbler.YawStiffness,45,가는 쪽으로 몸을 돌리는 힘
-Wobbler.MoveGain,5,
+Wobbler.HoverStiffness,150,몸통을 띄우는 스프링 (1/s²). 감쇠비 ~0.9 (출렁임 없이 푹 꺼졌다 올라옴)
+Wobbler.HoverDamping,22,
+Wobbler.UprightStiffness,90,바로 서려는 힘. 약할수록 축 처져 비틀 (감쇠비 ~0.85)
+Wobbler.UprightDamping,16,
+Wobbler.YawStiffness,30,가는 쪽으로 몸을 돌리는 힘
+Wobbler.YawDamping,14,몸 돌리는 힘의 감쇠 (없으면 좌우로 계속 와리가리)
+Wobbler.FacingTurn,2.5,가고 싶은 방향을 따라 도는 최대 빠르기 (rad/s)
+Wobbler.MoveGain,3,원하는 속도로 붙는 빠르기 (낮을수록 묵직)
 Wobbler.MoveMaxAccel,1300,
 Wobbler.JoltThreshold,330,한 프레임 속도 변화가 이보다 크면 충돌로 친다
 Wobbler.StumbleThreshold,560,서 있는 놈이 나동그라지는 충격
@@ -112,29 +114,24 @@ Wobbler.BlownTime,0.3,
 Wobbler.DeadTime,2.6,쓰러진 몸이 사라지기까지
 Wobbler.DeadPale,0.65,죽으면 Pale 색 쪽으로
 Wobbler.DarkShade,0.72,손발 색 = 몸 색 x 이 값
-Gait.StepBase,3,걸음 박자
-Gait.StepPerSpeed,0.045,
-Gait.WalkSpeed,120,
-Gait.WalkMin,0.25,
-Gait.Sway,0.2,뒤뚱거림
-Gait.SwayBlown,0.45,바람·어지러울 때
-Gait.Lean,0.12,
+Gait.WalkSpeed,150,이 속도면 걸음 동작이 최대
+Gait.Stride,150,다리 한 번 왕복에 걷는 거리 (크기 1당 cm). 걸음 박자는 시간이 아니라 걸은 거리로
+Gait.Sway,0.06,걸음마다 좌우로 기우는 정도 (rad)
+Gait.SwayBlown,0.3,바람·어지러울 때
+Gait.Lean,0.16,걸을 때 앞으로 숙이는 정도 (rad)
 Gait.BlownFirm,0.45,
-Gait.LegSwing,0.75,
-Gait.LegStiffness,260,
-Gait.LegDamping,10,
-Gait.ArmStiffness,90,
-Gait.ArmDamping,7,
+Gait.LegSwing,0.55,다리 앞뒤 흔드는 각 (rad)
+Gait.LegStiffness,110,감쇠비 ~0.8
+Gait.LegDamping,17,
+Gait.ArmStiffness,16,적 팔: 약해서 축 늘어진다
+Gait.ArmDamping,5,
 Gait.ClubArmStiffness,320,
 Gait.LooseArmStiffness,30,
-Gait.HeadStiffness,70,목이 물러서 까딱까딱
-Gait.HeadDamping,4,
-Gait.ArmReach,0.9,좀비 팔
-Gait.ArmLift,0.3,
-Gait.ArmFlail,0.55,
-Gait.ArmFlailSpeed,0.7,
-Gait.ArmPhase,2.1,
-Gait.ArmSpread,0.35,
+Gait.HeadStiffness,28,목이 물러서 덜렁 (감쇠비 ~0.6)
+Gait.HeadDamping,6,
+Gait.ArmDroop,0.3,늘어진 팔이 앞으로 처지는 정도
+Gait.ArmSwing,0.45,걸을 때 팔이 다리 반대로 흔들리는 정도
+Gait.ArmSpread,0.12,
 Gait.LooseArmSpread,0.4,
 Gait.ClubPoseForward,0.6,몽둥이 치켜든 자세
 Gait.ClubPoseRight,0.5,

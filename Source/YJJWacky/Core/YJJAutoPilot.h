@@ -112,6 +112,9 @@ private:
 	static constexpr float WalkClosePitch = -18.f;
 	static constexpr float WalkCloseDistance = 1000.f;
 	static constexpr float WalkCloseShot = 0.6f;
+	/** 서서 걷는 놈 몸통의 평균 회전 속도 한계 (rad/s). 넘으면 와리가리 */
+	static constexpr float WalkMaxYawSpin = 0.6f;
+	static constexpr float WalkMaxTiltSpin = 0.9f;
 
 	// ---------------------------------------------------------------- 타워
 	static const FYJJTowerTrial Trials[];
@@ -196,6 +199,12 @@ private:
 	float FrameTime = 0.f;
 	float WorstFrame = 0.f;
 	int32 MarkKills = 0;
+	/** 걷기 흔들림 재기 */
+	bool bMeasureWobble = false;
+	double YawSpinSum = 0.0;
+	double TiltSpinSum = 0.0;
+	int32 SpinSamples = 0;
+	void SampleWobble();
 	int32 StressFrames = 0;
 	float StressTime = 0.f;
 };

@@ -279,6 +279,9 @@ void UYJJAutoPilot::AddWalkTest(const FVector& Start)
 		Check(Game->GetEnemies().Num() == WalkTotal, FString::Printf(TEXT("%d enemies alive after spawn (%d)"), WalkTotal, Game->GetEnemies().Num()));
 		Check(Standing >= WalkMinStanding, FString::Printf(TEXT("wobblers stand up (%d/%d standing)"), Standing, WalkTotal));
 		Shot(TEXT("Play_01_Walk"));
+		bMeasureWobble = true;
+		YawSpinSum = TiltSpinSum = 0.0;
+		SpinSamples = 0;
 	});
 	Add(WalkShotGap, [this] { Shot(TEXT("Play_02_Walk")); });
 	Add(WalkLaterWait, [this, Game] {
@@ -294,6 +297,10 @@ void UYJJAutoPilot::AddWalkTest(const FVector& Start)
 		}
 		Check(Best > WalkMinProgress, FString::Printf(TEXT("wobblers walk along the path (best %.0f cm)"), Best));
 		Check(Standing >= WalkMinStandingLater, FString::Printf(TEXT("still standing while walking (%d standing, %d alive)"), Standing, Game->GetEnemies().Num()));
+		bMeasureWobble = false;
+		const double Samples = FMath::Max(SpinSamples, 1);
+		Check(YawSpinSum / Samples < WalkMaxYawSpin, FString::Printf(TEXT("walk yaw spin %.2f rad/s (max %.2f)"), YawSpinSum / Samples, WalkMaxYawSpin));
+		Check(TiltSpinSum / Samples < WalkMaxTiltSpin, FString::Printf(TEXT("walk tilt spin %.2f rad/s (max %.2f)"), TiltSpinSum / Samples, WalkMaxTiltSpin));
 		View(YJJMap::PointAt(Best - WalkCloseBehind) + FVector(0, 0, ViewLift), WalkCloseYaw, WalkClosePitch, WalkCloseDistance);
 	});
 	Add(WalkCloseShot, [this] { Shot(TEXT("Play_03_WalkClose")); });
@@ -472,9 +479,33 @@ void UYJJAutoPilot::AddWaveTest()
 	});
 }
 
+void UYJJAutoPilot::SampleWobble()
+{
+	// 서서 걷는 놈만: 맞고 날아가는 회전은 빼고 걸음 자체의 흔들림만 잰다
+	UYJJGame* Game = UYJJGame::Get(GetWorld());
+	if (!Game)
+	{
+		return;
+	}
+	for (const AYJJWobbler* Enemy : Game->GetEnemies())
+	{
+		if (Enemy && Enemy->IsStanding())
+		{
+			const FVector Spin = Enemy->GetBodySpin();
+			YawSpinSum += FMath::Abs(Spin.Z);
+			TiltSpinSum += FVector2D(Spin.X, Spin.Y).Size();
+			SpinSamples++;
+		}
+	}
+}
+
 void UYJJAutoPilot::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	if (bMeasureWobble)
+	{
+		SampleWobble();
+	}
 	if (Steps.Num() == 0)
 	{
 		return;

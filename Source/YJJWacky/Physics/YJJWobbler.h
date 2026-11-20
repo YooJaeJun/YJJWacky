@@ -28,16 +28,16 @@ struct FYJJWobblerTuning
 	float Friction = 0.f, Bounciness = 0.f;
 
 	// 버티는 힘·충격
-	float HoverStiffness = 0.f, HoverDamping = 0.f, UprightStiffness = 0.f, UprightDamping = 0.f, YawStiffness = 0.f;
+	float HoverStiffness = 0.f, HoverDamping = 0.f, UprightStiffness = 0.f, UprightDamping = 0.f, YawStiffness = 0.f, YawDamping = 0.f, FacingTurn = 0.f;
 	float MoveGain = 0.f, MoveMaxAccel = 0.f, JoltThreshold = 0.f, StumbleThreshold = 0.f, ImpactDamage = 0.f, GetUpTime = 0.f, WindExponent = 0.f;
 	float GroundReach = 0.f, LiftMin = 0.f, LiftMax = 0.f, GetUpSpeed = 0.f, StuckTime = 0.f, AirTime = 0.f, FallLimp = 0.f, ImpactHeight = 0.f;
 	float SettleTime = 0.f, KnockWindow = 0.f, StumbleScale = 0.f, StumbleMin = 0.f, StumbleMax = 0.f, KnockSpin = 0.f, KnockSpinMax = 0.f;
 	float LimpWind = 0.f, BlownTime = 0.f, DeadTime = 0.f, DeadPale = 0.f, DarkShade = 0.f;
 
 	// 걸음새
-	float StepBase = 0.f, StepPerSpeed = 0.f, WalkSpeed = 0.f, WalkMin = 0.f, Sway = 0.f, SwayBlown = 0.f, Lean = 0.f, BlownFirm = 0.f;
+	float Stride = 0.f, WalkSpeed = 0.f, Sway = 0.f, SwayBlown = 0.f, Lean = 0.f, BlownFirm = 0.f;
 	float LegSwing = 0.f, LegStiffness = 0.f, LegDamping = 0.f, ArmStiffness = 0.f, ArmDamping = 0.f, ClubArmStiffness = 0.f, LooseArmStiffness = 0.f;
-	float HeadStiffness = 0.f, HeadDamping = 0.f, ArmReach = 0.f, ArmLift = 0.f, ArmFlail = 0.f, ArmFlailSpeed = 0.f, ArmPhase = 0.f, ArmSpread = 0.f;
+	float HeadStiffness = 0.f, HeadDamping = 0.f, ArmDroop = 0.f, ArmSwing = 0.f, ArmSpread = 0.f;
 	float LooseArmSpread = 0.f, ClubPoseForward = 0.f, ClubPoseRight = 0.f, ClubPoseUp = 0.f, ClubSpinUp = 0.f;
 
 	// 길 따라 걷기
@@ -105,6 +105,8 @@ public:
 	float GetHealthRatio() const { return FMath::Clamp(Health / FMath::Max(MaxHealth, 1.f), 0.f, 1.f); }
 	FVector GetBodyLocation() const;
 	FVector GetBodyVelocity() const;
+	/** 몸통 회전 속도 (rad/s) */
+	FVector GetBodySpin() const;
 	/** 길을 따라 얼마나 왔나 (cm) */
 	float GetProgress() const { return Progress; }
 
@@ -183,6 +185,8 @@ private:
 	float Progress = 0.f;
 	bool bShowcase = false;
 	FVector ShowFacing = FVector::ForwardVector;
+	/** 실제로 몸을 돌리는 방향: 가고 싶은 방향을 천천히 따라간다 (목표가 흔들려도 몸은 안 흔들리게) */
+	FVector SmoothFacing = FVector::ZeroVector;
 
 	bool bReady = false;
 	bool bDead = false;

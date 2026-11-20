@@ -58,6 +58,8 @@ void FYJJWobblerTuning::Load()
 	UprightStiffness = YJJData::Tune(TEXT("Wobbler.UprightStiffness"));
 	UprightDamping = YJJData::Tune(TEXT("Wobbler.UprightDamping"));
 	YawStiffness = YJJData::Tune(TEXT("Wobbler.YawStiffness"));
+	YawDamping = YJJData::Tune(TEXT("Wobbler.YawDamping"));
+	FacingTurn = YJJData::Tune(TEXT("Wobbler.FacingTurn"));
 	MoveGain = YJJData::Tune(TEXT("Wobbler.MoveGain"));
 	MoveMaxAccel = YJJData::Tune(TEXT("Wobbler.MoveMaxAccel"));
 	JoltThreshold = YJJData::Tune(TEXT("Wobbler.JoltThreshold"));
@@ -86,10 +88,8 @@ void FYJJWobblerTuning::Load()
 	DeadPale = YJJData::Tune(TEXT("Wobbler.DeadPale"));
 	DarkShade = YJJData::Tune(TEXT("Wobbler.DarkShade"));
 
-	StepBase = YJJData::Tune(TEXT("Gait.StepBase"));
-	StepPerSpeed = YJJData::Tune(TEXT("Gait.StepPerSpeed"));
+	Stride = YJJData::Tune(TEXT("Gait.Stride"));
 	WalkSpeed = YJJData::Tune(TEXT("Gait.WalkSpeed"));
-	WalkMin = YJJData::Tune(TEXT("Gait.WalkMin"));
 	Sway = YJJData::Tune(TEXT("Gait.Sway"));
 	SwayBlown = YJJData::Tune(TEXT("Gait.SwayBlown"));
 	Lean = YJJData::Tune(TEXT("Gait.Lean"));
@@ -103,11 +103,8 @@ void FYJJWobblerTuning::Load()
 	LooseArmStiffness = YJJData::Tune(TEXT("Gait.LooseArmStiffness"));
 	HeadStiffness = YJJData::Tune(TEXT("Gait.HeadStiffness"));
 	HeadDamping = YJJData::Tune(TEXT("Gait.HeadDamping"));
-	ArmReach = YJJData::Tune(TEXT("Gait.ArmReach"));
-	ArmLift = YJJData::Tune(TEXT("Gait.ArmLift"));
-	ArmFlail = YJJData::Tune(TEXT("Gait.ArmFlail"));
-	ArmFlailSpeed = YJJData::Tune(TEXT("Gait.ArmFlailSpeed"));
-	ArmPhase = YJJData::Tune(TEXT("Gait.ArmPhase"));
+	ArmDroop = YJJData::Tune(TEXT("Gait.ArmDroop"));
+	ArmSwing = YJJData::Tune(TEXT("Gait.ArmSwing"));
 	ArmSpread = YJJData::Tune(TEXT("Gait.ArmSpread"));
 	LooseArmSpread = YJJData::Tune(TEXT("Gait.LooseArmSpread"));
 	ClubPoseForward = YJJData::Tune(TEXT("Gait.ClubPoseForward"));
@@ -209,6 +206,11 @@ FVector AYJJWobbler::GetBodyLocation() const
 FVector AYJJWobbler::GetBodyVelocity() const
 {
 	return Torso->GetPhysicsLinearVelocity();
+}
+
+FVector AYJJWobbler::GetBodySpin() const
+{
+	return Torso->GetPhysicsAngularVelocityInRadians();
 }
 
 bool AYJJWobbler::IsStanding() const
@@ -773,13 +775,19 @@ void AYJJWobbler::Tick(float DeltaTime)
 
 	// 걸음 박자: 빨리 걸을수록 빨리 뒤뚱거린다
 	const float Speed2D = Velocity2D.Size();
-	Phase += DeltaTime * (T.StepBase + Speed2D * T.StepPerSpeed / FMath::Sqrt(S));
-	const float Walk = FMath::Clamp(Speed2D / T.WalkSpeed, T.WalkMin, 1.f);
+	Phase += Speed2D * DeltaTime * TWO_PI / FMath::Max(T.Stride * S, KINDA_SMALL_NUMBER);
+	const float Walk = FMath::Clamp(Speed2D / T.WalkSpeed, 0.f, 1.f);
 	Blown = FMath::Max(0.f, Blown - DeltaTime);
 	Dizzy = FMath::Max(0.f, Dizzy - DeltaTime);
 
 	// 몸통 세우기. 목표 자세 자체를 좌우로 기울여서 뒤뚱뒤뚱 걷게 한다
 	const bool bWobbly = Blown > 0.f || Dizzy > 0.f;
+	if (SmoothFacing.IsNearlyZero())
+	{
+		SmoothFacing = Torso->GetForwardVector().GetSafeNormal2D();
+	}
+	SmoothFacing = FMath::VInterpNormalRotationTo(SmoothFacing, Facing, DeltaTime, FMath::RadiansToDegrees(T.FacingTurn)).GetSafeNormal2D();
+	Facing = SmoothFacing.IsNearlyZero() ? Facing : SmoothFacing;
 	const FVector Right(-Facing.Y, Facing.X, 0.f);
 	const float Sway = bWobbly ? T.SwayBlown : T.Sway;
 	const FVector UpTarget = (FVector::UpVector + Right * Sway * FMath::Sin(Phase) * Walk + Facing * T.Lean * Walk).GetSafeNormal();
@@ -798,7 +806,7 @@ void AYJJWobbler::Tick(float DeltaTime)
 	else
 	{
 		const float YawError = FMath::FindDeltaAngleRadians(FMath::Atan2(Forward.Y, Forward.X), FMath::Atan2(Facing.Y, Facing.X));
-		Torso->AddTorqueInRadians(FVector(0, 0, YawError * T.YawStiffness) * Balance, NAME_None, true);
+		Torso->AddTorqueInRadians(FVector(0, 0, YawError * T.YawStiffness - Spin.Z * T.YawDamping) * Balance, NAME_None, true);
 	}
 
 	// 다리: 번갈아 앞뒤로
@@ -818,8 +826,8 @@ void AYJJWobbler::Tick(float DeltaTime)
 		float Stiffness = T.ArmStiffness;
 		if (IsEnemy())
 		{
-			// 좀비처럼 앞으로 뻗고 위아래로 휘적휘적
-			Hand = Forward * T.ArmReach + Up * (T.ArmLift + T.ArmFlail * FMath::Sin(Phase * T.ArmFlailSpeed + i * T.ArmPhase)) + BodyRight * Side * T.ArmSpread;
+			// 축 늘어진 팔: 살짝 앞으로 처지고, 같은 쪽 다리와 반대로 흔들린다
+			Hand = -Up + Forward * (T.ArmDroop + T.ArmSwing * FMath::Sin(Phase + i * PI) * Walk) + BodyRight * Side * T.ArmSpread;
 		}
 		else if (i == 1)
 		{
