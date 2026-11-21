@@ -13,6 +13,7 @@ enum class EYJJWobblerKind : uint8
 	Boss,		// 대장: 거대
 	Tiny,		// 꼬마: 아주 작고 가볍다 (새총 탄알 1순위)
 	Guard,		// 아군 몽둥이 병사
+	Hero,		// 영웅 프라이팬 아저씨: 플레이어가 보낸 자리에서 싸운다 (Tuning.csv Hero.*)
 };
 
 /** 타워 종류. Towers.csv의 행 이름이 이 이름과 같아야 한다 */

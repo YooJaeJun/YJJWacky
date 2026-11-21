@@ -105,6 +105,10 @@ Spell.KeyOuter,13,
 Spell.KeyInner,10,
 Spell.KeySize,14,
 Spell.PieSides,36,쿨타임 그늘 조각 수 (한 바퀴)
+Hero.X,70,딱밤 위 영웅 얼굴 버튼 (가운데 X)
+Hero.Bottom,200,화면 아래에서 가운데까지
+Hero.IconR,32,
+Hero.TimeSize,26,돌아오기까지 남은 초
 Aim.Sides,48,땅 위 조준 원
 Aim.Thickness,3,
 Aim.Inner,0.55,안쪽 원 비율

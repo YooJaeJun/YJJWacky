@@ -11,7 +11,7 @@ struct FCompositeFont;
 
 /**
  * 게임 HUD (Canvas, 위젯 에셋 없음).
- * 푸딩 체력·골드, 웨이브, 타워 카드, 출격 버튼(일찍 부르기), 딱밤·주문 버튼, 주문 조준 원, 떠오르는 글자, 결과 카드(별점).
+ * 푸딩 체력·골드, 웨이브, 타워 카드, 출격 버튼(일찍 부르기), 딱밤·주문·영웅 버튼, 조준 원, 떠오르는 글자, 결과 카드(별점).
  * 배치·글자 크기는 HudLayout.csv, 아이콘은 HudIcons.csv, 색은 Colors.csv (Hud*), 글자는 Localization.csv.
  */
 UCLASS()
@@ -24,6 +24,8 @@ public:
 	static constexpr int32 ButtonRestart = 11;
 	/** 주문 버튼: ButtonSpell + EYJJSpell */
 	static constexpr int32 ButtonSpell = 20;
+	/** 영웅 얼굴 버튼 */
+	static constexpr int32 ButtonHero = 30;
 
 	virtual void DrawHUD() override;
 
@@ -72,6 +74,7 @@ private:
 	void DrawFlick(const UYJJGame& Game);
 	void DrawSpells(const UYJJGame& Game, const AYJJCommander& Commander);
 	void DrawAim(const UYJJGame& Game, const AYJJCommander& Commander);
+	void DrawHero(const UYJJGame& Game, const AYJJCommander& Commander);
 	void DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander);
 	void DrawBanner(const UYJJGame& Game);
 	void DrawEnd(const UYJJGame& Game);

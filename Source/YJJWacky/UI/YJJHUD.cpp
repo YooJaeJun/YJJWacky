@@ -309,6 +309,7 @@ void AYJJHUD::DrawHUD()
 		DrawStart(*Game);
 		DrawFlick(*Game);
 		DrawSpells(*Game, *Commander);
+		DrawHero(*Game, *Commander);
 		DrawAim(*Game, *Commander);
 	}
 	DrawBanner(*Game);
@@ -368,9 +369,10 @@ void AYJJHUD::DrawCards(const UYJJGame& Game, const AYJJCommander& Commander)
 	const float X0 = Canvas->ClipX * 0.5f - Total * 0.5f;
 	const float Y0 = Canvas->ClipY - CardH - SL(TEXT("Card.Bottom"));
 
-	const bool bAiming = Commander.GetPendingSpell() != INDEX_NONE;
-	const FString Help = bAiming ? YJJLoc::Format(TEXT("Hud.SpellAim"), { UYJJGame::SpellName(static_cast<EYJJSpell>(Commander.GetPendingSpell())) })
-		: YJJLoc::Get(TEXT("Hud.Controls"));
+	const bool bSpellAim = Commander.GetPendingSpell() != INDEX_NONE;
+	const bool bAiming = bSpellAim || Commander.IsHeroSelected();
+	const FString Help = bSpellAim ? YJJLoc::Format(TEXT("Hud.SpellAim"), { UYJJGame::SpellName(static_cast<EYJJSpell>(Commander.GetPendingSpell())) })
+		: (bAiming ? YJJLoc::Get(TEXT("Hud.HeroAim")) : YJJLoc::Get(TEXT("Hud.Controls")));
 	Text(Help, Canvas->ClipX * 0.5f, Y0 - SL(TEXT("Card.HelpY")), L(TEXT("Card.HelpSize")),
 		bAiming ? C(TEXT("HudGold")) : WithAlpha(C(TEXT("HudCream")), L(TEXT("Card.HelpAlpha"))), EAlign::Center);
 
@@ -510,8 +512,66 @@ void AYJJHUD::DrawSpells(const UYJJGame& Game, const AYJJCommander& Commander)
 	}
 }
 
+void AYJJHUD::DrawHero(const UYJJGame& Game, const AYJJCommander& Commander)
+{
+	if (!Game.IsHeroEnabled())
+	{
+		return;
+	}
+	// 주문 옆 영웅 얼굴: 물에 빠지면 돌아올 때까지 그늘과 남은 초
+	const float X = SL(TEXT("Hero.X")), Y = Canvas->ClipY - SL(TEXT("Hero.Bottom")), R = SL(TEXT("Spell.R"));
+	const bool bAlive = Game.GetHero() != nullptr;
+	const bool bSelected = Commander.IsHeroSelected();
+	const bool bHover = FVector2D::DistSquared(Mouse, FVector2D(X, Y)) < R * R;
+	AddButton(X - R, Y - R, R * 2.f, R * 2.f, ButtonHero);
+
+	if (bSelected)
+	{
+		Circle(X, Y, R + SL(TEXT("Spell.Selected")), C(TEXT("HudHeroRing")));
+	}
+	Circle(X, Y, R + SL(TEXT("Spell.Border")), C(TEXT("HudInk")));
+	Circle(X, Y, R, C(bHover ? TEXT("HudCardHover") : TEXT("HudFlickBack")));
+	DrawIcon(TEXT("Hero"), X, Y, SL(TEXT("Hero.IconR")));
+	if (!bAlive)
+	{
+		Pie(X, Y, R, 1.f - Game.GetHeroCharge(), C(TEXT("HudSpellShade")));
+		Text(FString::FromInt(FMath::CeilToInt(Game.GetHeroRespawnLeft())), X, Y, L(TEXT("Hero.TimeSize")), C(TEXT("HudCream")), EAlign::Center);
+	}
+	Text(YJJLoc::Get(TEXT("Hud.HeroName")), X, Y + SL(TEXT("Spell.NameY")), L(TEXT("Spell.NameSize")), C(bAlive ? TEXT("HudCream") : TEXT("HudDim")), EAlign::Center);
+
+	// 단축키
+	const float KX = X - SL(TEXT("Spell.KeyXY")), KY = Y - SL(TEXT("Spell.KeyXY"));
+	Circle(KX, KY, SL(TEXT("Spell.KeyOuter")), C(TEXT("HudInk")));
+	Circle(KX, KY, SL(TEXT("Spell.KeyInner")), C(bSelected ? TEXT("HudHeroRing") : TEXT("HudCream")));
+	Text(YJJLoc::Get(TEXT("Hud.HeroKey")), KX, KY, L(TEXT("Spell.KeySize")), C(TEXT("HudInk")), EAlign::Center, 0.f);
+}
+
 void AYJJHUD::DrawAim(const UYJJGame& Game, const AYJJCommander& Commander)
 {
+	// 영웅: 고르면 발밑 고리, 가는 중이면 갈 자리 깃발 고리, 보낼 곳 미리 보기
+	if (const AYJJWobbler* Hero = Game.GetHero())
+	{
+		const FVector Body = Hero->GetBodyLocation();
+		const FVector Feet(Body.X, Body.Y, 0.f);
+		const float Ring = YJJData::Tune(TEXT("Hero.RingRadius")) * Hero->GetScale();
+		if (Commander.IsHeroSelected() || Commander.IsOverHero())
+		{
+			GroundRing(Feet, Ring, C(TEXT("HudHeroRing")));
+		}
+		const FVector& Post = Game.GetHeroPost();
+		if (FVector::DistSquared2D(Feet, Post) > FMath::Square(YJJData::Tune(TEXT("Hero.ArriveRadius"))))
+		{
+			GroundRing(Post, YJJData::Tune(TEXT("Hero.AimRadius")) * L(TEXT("Aim.Inner")), C(TEXT("HudHeroPost")));
+		}
+		FVector HeroAim;
+		if (Commander.IsHeroSelected() && Commander.GetAim(HeroAim))
+		{
+			const FVector Spot = UYJJGame::SnapToPath(HeroAim);
+			GroundRing(Spot, YJJData::Tune(TEXT("Hero.AimRadius")), C(TEXT("HudHeroRing")));
+			GroundRing(Spot, YJJData::Tune(TEXT("Hero.AimRadius")) * L(TEXT("Aim.Inner")), C(TEXT("HudHeroRing")));
+		}
+	}
+
 	// 떨어지는 중인 바위 그림자
 	for (TActorIterator<AYJJBoulder> It(GetWorld()); It; ++It)
 	{

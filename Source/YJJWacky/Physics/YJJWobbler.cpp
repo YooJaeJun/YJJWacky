@@ -142,6 +142,9 @@ void FYJJWobblerTuning::Load()
 	ClubUp = YJJData::Tune(TEXT("Guard.ClubUp"));
 	ClubDamage = YJJData::Tune(TEXT("Guard.ClubDamage"));
 	Dizzy = YJJData::Tune(TEXT("Guard.Dizzy"));
+	HeroClubPower = YJJData::Tune(TEXT("Hero.ClubPower"));
+	HeroLookahead = YJJData::Tune(TEXT("Hero.Lookahead"));
+	HeroSturdy = YJJData::Tune(TEXT("Hero.Sturdy"));
 
 	HoldGain = YJJData::Tune(TEXT("Sling.HoldGain"));
 	HoldMaxSpeed = YJJData::Tune(TEXT("Sling.HoldMaxSpeed"));
@@ -289,6 +292,11 @@ void AYJJWobbler::AddJoint(UPrimitiveComponent* Child, const FVector& LocalPivot
 	Joint->SetAngularSwing1Limit(ACM_Limited, SwingDeg);
 	Joint->SetAngularSwing2Limit(ACM_Limited, SwingDeg);
 	Joint->SetAngularTwistLimit(ACM_Limited, TwistDeg);
+	// 엔진 기본값인 투영(Projection)과 질량 보정(Mass Conditioning)은 끈다.
+	// 둘 다 관절을 맞출 때 몸통과 팔다리 무게를 실제와 다르게 쳐서 운동량이 생겨나므로,
+	// 남의 몸·땅과 부딪히는 래그돌이 아무것도 안 닿은 공중에서 혼자 가속해 하늘로 날아간다
+	Joint->ConstraintInstance.ProfileInstance.bEnableProjection = false;
+	Joint->ConstraintInstance.ProfileInstance.bEnableMassConditioning = false;
 	Joint->RegisterComponent();
 	Joint->SetConstrainedComponents(Torso, NAME_None, Child, NAME_None);
 	Joints.Add(Joint);
@@ -670,7 +678,7 @@ void AYJJWobbler::Tick(float DeltaTime)
 				return;
 			}
 		}
-		else if (!bLimp && Jolt > T.StumbleThreshold)
+		else if (!bLimp && Jolt > T.StumbleThreshold * (IsHero() ? T.HeroSturdy : 1.f))
 		{
 			// 서 있다가 날아온 놈에게 치였다: 다치진 않고 나동그라진다 (도미노)
 			GoLimp(FMath::Clamp(Jolt / T.StumbleScale, T.StumbleMin, T.StumbleMax) / FMath::Sqrt(Spec(Kind).Heft()));
@@ -863,6 +871,18 @@ void AYJJWobbler::TickGuard(float DeltaTime, const FVector& Location, FVector& O
 	// 자리로 돌아가려는 힘
 	const FVector ToPost = FVector(Post.X - Location.X, Post.Y - Location.Y, 0.f);
 	OutDesiredVelocity = (ToPost * T.PostGain).GetClampedToMaxSize(Spec(Kind).Speed);
+	if (IsHero())
+	{
+		// 보낸 자리가 길을 따라 멀면 모퉁이를 가로지르지 말고 길 가운데를 따라간다
+		const float Here = YJJMap::Project(Location);
+		const float There = YJJMap::Project(Post);
+		if (FMath::Abs(There - Here) > T.HeroLookahead)
+		{
+			const FVector Carrot = YJJMap::PointAt(Here + FMath::Sign(There - Here) * T.HeroLookahead);
+			OutDesiredVelocity = (Carrot - Location).GetSafeNormal2D() * Spec(Kind).Speed;
+			OutFacing = OutDesiredVelocity.GetSafeNormal2D();
+		}
+	}
 
 	AYJJWobbler* Target = Game ? Game->FindNearestEnemy(Location, T.Sight * S) : nullptr;
 	if (Target)
@@ -895,7 +915,7 @@ void AYJJWobbler::TickGuard(float DeltaTime, const FVector& Location, FVector& O
 					// 몽둥이가 휘둘리는 방향 + 바깥쪽
 					const FVector Out = (P - Location).GetSafeNormal2D();
 					const FVector Tangent(-Out.Y, Out.X, 0.f);
-					const float Power = Row.Power(Level);
+					const float Power = Row.Power(Level) * (IsHero() ? T.HeroClubPower : 1.f);
 					const FVector Club = Tangent * T.ClubSide + Out * T.ClubOut + FVector(0, 0, T.ClubUp);
 					Enemy->Knock(Club * Power, T.ClubLimp, T.ClubDamage * Power);
 					AYJJEffects::Burst(this, TEXT("Club"), P);

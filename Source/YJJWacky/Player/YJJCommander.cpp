@@ -86,6 +86,33 @@ void AYJJCommander::HandleButton(int32 Button)
 	{
 		ToggleSpell(Button - AYJJHUD::ButtonSpell);
 	}
+	else if (Button == AYJJHUD::ButtonHero)
+	{
+		ToggleHero();
+	}
+}
+
+void AYJJCommander::ToggleHero()
+{
+	UYJJGame* Game = UYJJGame::Get(this);
+	if (!Game)
+	{
+		return;
+	}
+	if (bHeroSelected)
+	{
+		bHeroSelected = false;
+	}
+	else if (Game->GetHero())
+	{
+		bHeroSelected = true;
+		PendingSpell = INDEX_NONE;
+	}
+	else
+	{
+		// 물에 빠져서 오는 중
+		YJJAudio::Play(this, TEXT("Deny"));
+	}
 }
 
 void AYJJCommander::ToggleSpell(int32 Spell)
@@ -102,6 +129,7 @@ void AYJJCommander::ToggleSpell(int32 Spell)
 	else if (Game->CanCast(static_cast<EYJJSpell>(Spell)))
 	{
 		PendingSpell = Spell;
+		bHeroSelected = false;
 	}
 	else
 	{
@@ -158,9 +186,18 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 			ToggleSpell(i);
 		}
 	}
+	if (WasInputKeyJustPressed(EKeys::H) && !bEnded)
+	{
+		ToggleHero();
+	}
 	if (bEnded || WasInputKeyJustPressed(EKeys::Escape))
 	{
 		PendingSpell = INDEX_NONE;
+		bHeroSelected = false;
+	}
+	if (!Game->GetHero())
+	{
+		bHeroSelected = false;
 	}
 	if (WasInputKeyJustPressed(EKeys::SpaceBar) || WasInputKeyJustPressed(EKeys::Enter))
 	{
@@ -194,7 +231,7 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 		AimPoint = Ground;
 		bAimValid = true;
 		const TArray<YJJMap::FPad>& Pads = YJJMap::Pads();
-		for (int32 i = 0; i < Pads.Num() && PendingSpell == INDEX_NONE; ++i)
+		for (int32 i = 0; i < Pads.Num() && PendingSpell == INDEX_NONE && !bHeroSelected; ++i)
 		{
 			if (FVector::DistSquared2D(Ground, Pads[i].Location) < FMath::Square(YJJMap::PadRadius() + YJJData::Tune(TEXT("Camera.PadPickExtra"))))
 			{
@@ -202,6 +239,19 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 				break;
 			}
 		}
+	}
+	// 영웅 위에 커서: 발판보다 먼저
+	bOverHero = false;
+	if (const AYJJWobbler* Hero = Game->GetHero())
+	{
+		FVector2D HeroScreen;
+		bOverHero = bMouse && Button == INDEX_NONE && !bEnded && PendingSpell == INDEX_NONE && !bHeroSelected
+			&& ProjectWorldLocationToScreen(Hero->GetBodyLocation(), HeroScreen)
+			&& FVector2D::DistSquared(HeroScreen, Mouse) < FMath::Square(YJJData::Tune(TEXT("Hero.PickRadius")));
+	}
+	if (bOverHero)
+	{
+		HoverPad = INDEX_NONE;
 	}
 	if (Arena)
 	{
@@ -230,6 +280,18 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 			{
 				PendingSpell = INDEX_NONE;
 			}
+		}
+		else if (bHeroSelected)
+		{
+			// 고른 영웅을 커서 아래 길로 보낸다
+			if (bAimValid && Game->MoveHero(AimPoint))
+			{
+				bHeroSelected = false;
+			}
+		}
+		else if (bOverHero)
+		{
+			ToggleHero();
 		}
 		else if (HoverPad != INDEX_NONE)
 		{
@@ -272,6 +334,10 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 		if (PendingSpell != INDEX_NONE)
 		{
 			PendingSpell = INDEX_NONE;
+		}
+		else if (bHeroSelected)
+		{
+			bHeroSelected = false;
 		}
 		else if (HoverPad != INDEX_NONE)
 		{

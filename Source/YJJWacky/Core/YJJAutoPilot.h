@@ -23,7 +23,7 @@ struct FYJJTowerTrial
  * 자동 테스트. 명령줄 -yjjplay 또는 콘솔 yjj.AutoPlay.
  * 걷기 -> 타워 종류별 -> 강화 -> 부하 -> 웨이브 방어를 차례로 돌리며
  * 로그([AutoPilot] PASS/FAIL)와 스크린샷(Saved/Screenshots/Play_*.png)을 남긴다.
- * -yjjquit 이 있으면 끝나고 게임을 끈다. -yjjtests=walk,towers,upgrade,spells,stress,waves 로 일부만, -yjjwaves=N 으로 웨이브 수.
+ * -yjjquit 이 있으면 끝나고 게임을 끈다. -yjjtests=walk,towers,upgrade,spells,hero,stress,waves 로 일부만, -yjjwaves=N 으로 웨이브 수.
  */
 UCLASS()
 class YJJWACKY_API UYJJAutoPilot : public UTickableWorldSubsystem
@@ -62,6 +62,8 @@ private:
 	void AddUpgradeTests();
 	/** 바위 주문이 졸병 무리를 쓰러뜨리는지, 지원군이 내려왔다 돌아가는지, 일찍 부르면 골드를 받는지 */
 	void AddSpellTest();
+	/** 영웅이 서고, 보낸 곳으로 가고, 적 무리에 배치기를 하고, 물에 빠지면 다시 오는지 */
+	void AddHeroTest();
 	void AddStressTest();
 	void AddWaveTest();
 	/** 몹 여섯 종을 한 줄로 세우고, 타워 다섯 종을 Lv1·Lv3 로 지어 가까이서 찍는다 (모양 확인용, 판정 없음) */
@@ -157,6 +159,25 @@ private:
 	static constexpr float SpellViewPitch = -32.f;
 	static constexpr float SpellViewDistance = 2200.f;
 
+	// ---------------------------------------------------------------- 영웅
+	static constexpr float HeroSpawnWait = 3.f;
+	/** 출발점에서 길을 따라 이만큼(cm) 간 곳으로 보낸다 */
+	static constexpr float HeroMoveAt = 1900.f;
+	static constexpr float HeroWalkWait = 9.f;
+	static constexpr float HeroArriveDist = 180.f;
+	static constexpr int32 HeroSquad = 6;
+	static constexpr float HeroFightWait = 12.f;
+	static constexpr int32 HeroShotSample = 10;
+	static constexpr int32 HeroFightSamples = 16;
+	static constexpr float HeroFightGap = 0.4f;
+	/** 물에 빠뜨리는 옆 속도·위 속도 (무게 나누기 전) */
+	static constexpr float HeroShoveSpeed = 6000.f;
+	static constexpr float HeroShoveUp = 2000.f;
+	static constexpr float HeroShoveLimp = 3.f;
+	static constexpr float HeroDrownWait = 4.f;
+	static constexpr float HeroBackExtra = 4.f;
+	static constexpr float HeroViewDistance = 1700.f;
+
 	// ---------------------------------------------------------------- 부하
 	static constexpr int32 StressBatches = 6;
 	static constexpr float StressBatchGap = 0.6f;
@@ -212,6 +233,7 @@ private:
 	/** 주문 시험 중 센 값 */
 	int32 SpellKills = 0;
 	int32 SpellLimpMax = 0;
+	int32 HeroStompsSeen = 0;
 
 	TArray<FStep> Steps;
 	int32 StepIndex = INDEX_NONE;

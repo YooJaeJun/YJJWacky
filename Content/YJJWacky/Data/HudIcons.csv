@@ -62,3 +62,14 @@ Reinforce13,Reinforce,Rect,-0.95,-0.24,1.3,0.16,HudInk,0,0,1,0,0,0,밀짚모자
 Reinforce14,Reinforce,Rect,-0.9,-0.21,1.2,0.1,IconStraw,0,0,1,0,0,0,
 Reinforce15,Reinforce,Rect,-0.6,-0.52,0.6,0.32,HudInk,0,0,1,0,0,0,
 Reinforce16,Reinforce,Rect,-0.56,-0.48,0.52,0.27,IconStraw,0,0,1,0,0,0,
+Hero01,Hero,Circle,0,0.08,0.86,0,HudInk,0,0,1,0,0,0,대머리 아저씨 (영웅)
+Hero02,Hero,Circle,0,0.08,0.77,0,IconSkin,0,0,1,0,0,0,
+Hero03,Hero,Rect,-0.84,-0.36,1.68,0.26,HudInk,0,0,1,0,0,0,빨간 머리띠
+Hero04,Hero,Rect,-0.8,-0.32,1.6,0.18,IconBand,0,0,1,0,0,0,
+Hero05,Hero,Circle,-0.3,-0.52,0.11,0,White,0,0,1,0,0,0,반짝
+Hero06,Hero,Circle,-0.27,0.06,0.16,0,White,0,0,1,0,0,0,
+Hero07,Hero,Circle,0.27,0.06,0.16,0,White,0,0,1,0,0,0,
+Hero08,Hero,Circle,-0.24,0.09,0.07,0,HudInk,0,0,1,0,0,0,
+Hero09,Hero,Circle,0.3,0.09,0.07,0,HudInk,0,0,1,0,0,0,
+Hero10,Hero,Rect,-0.52,0.34,1.04,0.2,HudInk,0,0,1,0,0,0,콧수염
+Hero11,Hero,Circle,0,0.3,0.13,0,SkinRosy,0,0,1,0,0,0,

@@ -47,6 +47,12 @@ struct FYJJWobblerTuning
 	float PostGain = 0.f, Sight = 0.f, ClubInterval = 0.f, ClubRadius = 0.f, TargetRadius = 0.f, ClubLength = 0.f, ClubLimp = 0.f;
 	float SpinTrigger = 0.f, SpinTriggerTarget = 0.f, SpinSpeed = 0.f, SpinGain = 0.f;
 	float ClubSide = 0.f, ClubOut = 0.f, ClubUp = 0.f, ClubDamage = 0.f, Dizzy = 0.f;
+	/** 영웅 프라이팬은 병사 몽둥이의 이만큼 배 */
+	float HeroClubPower = 0.f;
+	/** 보낸 자리가 멀면 길을 따라 이만큼 앞을 보고 걷는다 (물을 가로지르지 않게) */
+	float HeroLookahead = 0.f;
+	/** 영웅은 부딪혀 나동그라지는 문턱이 이만큼 배 (졸병 무리에 떠밀려 눕지 않게) */
+	float HeroSturdy = 0.f;
 
 	// 새총에 붙잡힘 / 탄알
 	float HoldGain = 0.f, HoldMaxSpeed = 0.f, HoldSpinDamp = 0.f, KickSpeed = 0.f, KickStrength = 0.f, FlingSpin = 0.f, FlingLimp = 0.f;
@@ -96,7 +102,11 @@ public:
 	bool IsProjectile() const { return ProjectileTime > 0.f; }
 	float GetWeight() const { return Spec(Kind).WeightKg; }
 
-	bool IsEnemy() const { return Kind != EYJJWobblerKind::Guard; }
+	bool IsEnemy() const { return Kind != EYJJWobblerKind::Guard && Kind != EYJJWobblerKind::Hero; }
+	bool IsHero() const { return Kind == EYJJWobblerKind::Hero; }
+	/** 아군이 지키는 자리를 옮긴다 (영웅 보내기) */
+	void SetPost(const FVector& InPost) { Post = InPost; }
+	const FVector& GetPost() const { return Post; }
 	bool IsAlive() const { return bReady && !bDead; }
 	bool IsLimp() const { return bLimp; }
 	bool IsStanding() const;

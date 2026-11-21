@@ -30,3 +30,6 @@ Reinforce,SFX_WaveStart,0.7,1.2,1.2,지원군
 Combo,SFX_Combo,1,1,1,떼죽음
 Win,SFX_Win,1,1,1,
 Lose,SFX_Lose,1,1,1,
+HeroMove,SFX_Build,0.6,1.4,1.5,영웅 보내기
+HeroStomp,SFX_Boom,0.8,1.0,1.1,배치기
+HeroBack,SFX_WaveStart,0.6,1.4,1.4,영웅 다시 옴

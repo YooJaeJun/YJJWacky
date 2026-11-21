@@ -294,6 +294,10 @@ TArray<TObjectPtr<AYJJWobbler>> UYJJGame::GetGuards() const
 			All.Add(Helper);
 		}
 	}
+	if (IsValid(Hero))
+	{
+		All.Add(Hero);
+	}
 	return All;
 }
 
@@ -397,6 +401,11 @@ void UYJJGame::RegisterWobbler(AYJJWobbler* Wobbler)
 
 void UYJJGame::OnWobblerDown(AYJJWobbler* Wobbler, bool bDrowned)
 {
+	if (Wobbler && Wobbler == Hero)
+	{
+		OnHeroDown();
+		return;
+	}
 	if (!Wobbler || !Wobbler->IsEnemy())
 	{
 		return;
@@ -618,6 +627,172 @@ void UYJJGame::TickHelpers(float DeltaTime)
 	}
 }
 
+// ============================================================ 영웅
+
+FVector UYJJGame::SnapToPath(const FVector& Point)
+{
+	FVector Closest;
+	float Lateral = 0.f;
+	const float Along = YJJMap::Project(Point, &Closest, &Lateral);
+	FVector Dir = FVector::ForwardVector;
+	YJJMap::PointAt(Along, &Dir);
+	const float Limit = FMath::Max(0.f, YJJMap::PathWidth() * 0.5f - Tune(TEXT("Hero.EdgeMargin")));
+	const FVector Spot = Closest + FVector(-Dir.Y, Dir.X, 0.f) * FMath::Clamp(Lateral, -Limit, Limit);
+	return FVector(Spot.X, Spot.Y, 0.f);
+}
+
+bool UYJJGame::MoveHero(const FVector& Target)
+{
+	if (!IsValid(Hero))
+	{
+		YJJAudio::Play(this, TEXT("Deny"));
+		return false;
+	}
+	HeroPost = SnapToPath(Target);
+	Hero->SetPost(HeroPost);
+	YJJAudio::Play(this, TEXT("HeroMove"), HeroPost);
+	return true;
+}
+
+float UYJJGame::GetHeroCharge() const
+{
+	if (IsValid(Hero))
+	{
+		return 1.f;
+	}
+	return 1.f - FMath::Clamp(HeroRespawn / FMath::Max(Tune(TEXT("Hero.RespawnTime")), KINDA_SMALL_NUMBER), 0.f, 1.f);
+}
+
+void UYJJGame::SetHeroEnabled(bool bOn)
+{
+	bHeroEnabled = bOn;
+	if (IsValid(Hero))
+	{
+		Hero->Destroy();
+	}
+	Hero = nullptr;
+	bHeroPostSet = false;
+	HeroRespawn = 0.f;
+	HeroStompCooldown = 0.f;
+}
+
+void UYJJGame::SpawnHero()
+{
+	const float Scale = AYJJWobbler::Spec(EYJJWobblerKind::Hero).Scale;
+	FVector Dir = FVector::ForwardVector;
+	YJJMap::PointAt(YJJMap::Project(HeroPost), &Dir);
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Hero = GetWorld()->SpawnActor<AYJJWobbler>(AYJJWobbler::StaticClass(), HeroPost + FVector(0, 0, StandHeightPerScale * Scale + GuardSpawnLift), (-Dir).Rotation(), Params);
+	if (!Hero)
+	{
+		return;
+	}
+	// 적이 오는 쪽을 본다
+	Hero->Setup(EYJJWobblerKind::Hero, 0.f, HeroPost, YJJMaxTowerLevel);
+	HeroStompCooldown = Tune(TEXT("Hero.StompCooldown"));
+	AYJJEffects::Burst(this, TEXT("GuardPoof"), HeroPost + FVector(0, 0, StandHeightPerScale * Scale), Scale);
+	AddFloater(HeroPost, YJJLoc::Get(TEXT("Float.HeroBack")), TEXT("HeroBack"));
+	YJJAudio::Play(this, TEXT("HeroBack"), HeroPost);
+	UE_LOG(LogYJJWacky, Display, TEXT("[Game] hero at (%.0f, %.0f)"), HeroPost.X, HeroPost.Y);
+}
+
+void UYJJGame::OnHeroDown()
+{
+	const FVector Location = IsValid(Hero) ? Hero->GetBodyLocation() : HeroPost;
+	Hero = nullptr;
+	HeroRespawn = Tune(TEXT("Hero.RespawnTime"));
+	AddFloater(FVector(Location.X, Location.Y, YJJMap::WaterZ()), YJJLoc::Get(TEXT("Float.HeroDown")), TEXT("HeroDown"));
+	UE_LOG(LogYJJWacky, Display, TEXT("[Game] hero fell in at (%.0f, %.0f), back in %.0fs"), Location.X, Location.Y, HeroRespawn);
+}
+
+void UYJJGame::TickHero(float DeltaTime)
+{
+	if (!bHeroEnabled)
+	{
+		return;
+	}
+	if (!bHeroPostSet)
+	{
+		bHeroPostSet = true;
+		HeroPost = SnapToPath(YJJMap::PointAt(Tune(TEXT("Hero.StartAt"))));
+		HeroRespawn = Tune(TEXT("Hero.FirstDelay"));
+	}
+	if (Hero && !IsValid(Hero))
+	{
+		// 다른 까닭으로 사라졌다
+		Hero = nullptr;
+		HeroRespawn = FMath::Max(HeroRespawn, Tune(TEXT("Hero.RespawnTime")));
+	}
+	if (!Hero)
+	{
+		HeroRespawn -= DeltaTime;
+		if (HeroRespawn <= 0.f)
+		{
+			HeroRespawn = 0.f;
+			SpawnHero();
+		}
+		return;
+	}
+
+	// 적이 여럿 붙으면 배치기
+	HeroStompCooldown = FMath::Max(0.f, HeroStompCooldown - DeltaTime);
+	if (HeroStompCooldown > 0.f || !Hero->IsAlive() || Hero->IsLimp())
+	{
+		return;
+	}
+	const FVector Center = Hero->GetBodyLocation();
+	const float Reach = Tune(TEXT("Hero.StompRadius"));
+	int32 Near = 0;
+	for (const AYJJWobbler* Enemy : Enemies)
+	{
+		if (IsValid(Enemy) && Enemy->IsAlive() && FVector::DistSquared2D(Enemy->GetBodyLocation(), Center) < FMath::Square(Reach + BodyRadiusPerScale * Enemy->GetScale()))
+		{
+			Near++;
+		}
+	}
+	if (Near >= FMath::RoundToInt(Tune(TEXT("Hero.StompMin"))))
+	{
+		HeroStomp();
+	}
+}
+
+void UYJJGame::HeroStomp()
+{
+	HeroStompCooldown = Tune(TEXT("Hero.StompCooldown"));
+	HeroStomps++;
+	const FVector Center = Hero->GetBodyLocation();
+	const float Reach = Tune(TEXT("Hero.StompRadius"));
+	const float MinFalloff = Tune(TEXT("Hero.StompMinFalloff"));
+	const TArray<TObjectPtr<AYJJWobbler>> Targets = Enemies;	// 맞고 죽으면 목록이 바뀌므로 복사
+	int32 Hit = 0;
+	for (AYJJWobbler* Enemy : Targets)
+	{
+		if (!IsValid(Enemy) || !Enemy->IsAlive())
+		{
+			continue;
+		}
+		const FVector To = Enemy->GetBodyLocation() - Center;
+		const float Dist = To.Size2D();
+		const float Edge = Reach + BodyRadiusPerScale * Enemy->GetScale();
+		if (Dist > Edge)
+		{
+			continue;
+		}
+		// 가까울수록 세게 사방으로
+		const float Falloff = FMath::Clamp(1.f - Dist / FMath::Max(Edge, KINDA_SMALL_NUMBER), MinFalloff, 1.f);
+		Enemy->Knock(To.GetSafeNormal2D() * Tune(TEXT("Hero.StompOut")) * Falloff + FVector(0, 0, Tune(TEXT("Hero.StompUp")) * Falloff),
+			Tune(TEXT("Hero.StompLimp")), Tune(TEXT("Hero.StompDamage")) * Falloff);
+		Hit++;
+	}
+	const float Scale = Hero->GetScale();
+	const FVector Feet(Center.X, Center.Y, 0.f);
+	AYJJEffects::Burst(this, TEXT("BoulderDust"), Feet, Scale);
+	YJJAudio::Play(this, TEXT("HeroStomp"), Feet);
+	AddFloater(Center, YJJLoc::Get(TEXT("Float.HeroStomp")), TEXT("HeroStomp"));
+	UE_LOG(LogYJJWacky, Display, TEXT("[Game] hero stomp hit %d"), Hit);
+}
+
 void UYJJGame::DebugReset(int32 InGold, bool bClear)
 {
 	Gold = InGold;
@@ -634,6 +809,8 @@ void UYJJGame::DebugReset(int32 InGold, bool bClear)
 	}
 	Helpers.Reset();
 	HelperLife.Reset();
+	SetHeroEnabled(bHeroEnabled);
+	HeroStomps = 0;
 	for (float& Cooldown : SpellCooldown)
 	{
 		Cooldown = 0.f;
@@ -736,6 +913,7 @@ void UYJJGame::Tick(float DeltaTime)
 	}
 
 	TickHelpers(DeltaTime);
+	TickHero(DeltaTime);
 
 	if (Phase == EYJJPhase::Won || Phase == EYJJPhase::Lost)
 	{

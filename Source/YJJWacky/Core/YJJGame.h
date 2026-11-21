@@ -99,6 +99,23 @@ public:
 	/** Target 은 땅 위 점 */
 	bool CastSpell(EYJJSpell Spell, const FVector& Target);
 
+	// 영웅 (킹덤러쉬식: 눌러 고르고 땅을 눌러 보낸다). Tuning.csv Hero.*
+	AYJJWobbler* GetHero() const { return IsValid(Hero) ? Hero.Get() : nullptr; }
+	/** 영웅을 Target 에서 가장 가까운 길 위로 보낸다. 물에 빠져 없으면 false */
+	bool MoveHero(const FVector& Target);
+	/** 영웅이 가려는 자리 (길 위) */
+	const FVector& GetHeroPost() const { return HeroPost; }
+	/** 물에 빠진 영웅이 돌아오기까지 0~1 (1 = 서 있다) */
+	float GetHeroCharge() const;
+	float GetHeroRespawnLeft() const { return HeroRespawn; }
+	/** 배치기 한 횟수 */
+	int32 GetHeroStomps() const { return HeroStomps; }
+	/** 끄면 영웅이 사라지고 다시 오지 않는다 (자동 시험) */
+	void SetHeroEnabled(bool bOn);
+	bool IsHeroEnabled() const { return bHeroEnabled; }
+	/** Point 에서 가장 가까운 길 위 점 (가장자리에서 Hero.EdgeMargin 안쪽) */
+	static FVector SnapToPath(const FVector& Point);
+
 	/** 딱밤: 적 하나를 손가락으로 튕긴다 */
 	bool Flick(AYJJWobbler* Enemy, const FVector& Direction);
 	float GetFlickCharge() const;
@@ -110,7 +127,7 @@ public:
 	void OnEnemyReachedBase(AYJJWobbler* Wobbler);
 	/** 살아 있는 적 */
 	const TArray<TObjectPtr<AYJJWobbler>>& GetEnemies() const { return Enemies; }
-	/** 아군: 막사 병사 + 주문 지원군 */
+	/** 아군: 막사 병사 + 주문 지원군 + 영웅 */
 	TArray<TObjectPtr<AYJJWobbler>> GetGuards() const;
 	const TArray<TObjectPtr<AYJJWobbler>>& GetHelpers() const { return Helpers; }
 	AYJJWobbler* FindNearestEnemy(const FVector& Location, float Radius) const;
@@ -179,6 +196,11 @@ private:
 	void CastBoulder(const FVector& Target);
 	void CastReinforce(const FVector& Target);
 	void TickHelpers(float DeltaTime);
+	void TickHero(float DeltaTime);
+	void SpawnHero();
+	/** 배치기: 둘레 적을 배로 밀쳐 사방으로 날린다 */
+	void HeroStomp();
+	void OnHeroDown();
 	void EndGame(bool bWon);
 
 	UPROPERTY()
@@ -201,6 +223,16 @@ private:
 	TArray<TObjectPtr<AYJJWobbler>> Helpers;
 	TArray<float> HelperLife;
 	float SpellCooldown[YJJSpellCount] = {};
+
+	UPROPERTY()
+	TObjectPtr<AYJJWobbler> Hero;
+	FVector HeroPost = FVector::ZeroVector;
+	bool bHeroPostSet = false;
+	bool bHeroEnabled = true;
+	/** 다시 오기까지 남은 시간(초) */
+	float HeroRespawn = 0.f;
+	float HeroStompCooldown = 0.f;
+	int32 HeroStomps = 0;
 	float NextWaveTimer = -1.f;
 
 	EYJJPhase Phase = EYJJPhase::Build;

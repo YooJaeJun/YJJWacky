@@ -127,6 +127,12 @@ void UYJJAutoPilot::StartAutoPlay()
 	StepTimer = 0.f;
 	Passed = Failed = 0;
 
+	// 영웅은 영웅 시험에서만 (다른 시험 숫자가 흔들리지 않게)
+	if (UYJJGame* Game = UYJJGame::Get(GetWorld()))
+	{
+		Game->SetHeroEnabled(false);
+	}
+
 	FString Tests;
 	FParse::Value(FCommandLine::Get(), TEXT("yjjtests="), Tests, false);	// 쉼표에서 끊지 않는다
 	auto Wants = [&Tests](const TCHAR* Name) { return Tests.IsEmpty() || Tests.Contains(Name); };
@@ -152,6 +158,10 @@ void UYJJAutoPilot::StartAutoPlay()
 	if (Wants(TEXT("spells")) && YJJMap::Path().Num() > 0)
 	{
 		AddSpellTest();
+	}
+	if (Wants(TEXT("hero")) && YJJMap::Path().Num() > 0)
+	{
+		AddHeroTest();
 	}
 	if (Wants(TEXT("stress")))
 	{
@@ -190,7 +200,7 @@ void UYJJAutoPilot::AddGalleryTest()
 	}
 	const FVector Along = (Path[1] - Path[0]).GetSafeNormal2D();
 	const FVector Toward(-Along.Y, Along.X, 0.f);	// 카메라 쪽
-	const int32 Kinds = static_cast<int32>(EYJJWobblerKind::Guard) + 1;
+	const int32 Kinds = static_cast<int32>(EYJJWobblerKind::Hero) + 1;
 	const float CameraYaw = (-Toward).Rotation().Yaw;
 
 	Add(SetupWait, [this, Game, Kinds, Toward] {
@@ -205,7 +215,7 @@ void UYJJAutoPilot::AddGalleryTest()
 			const FVector Spot = GallerySpot(i);
 			AYJJWobbler* Model = GetWorld()->SpawnActor<AYJJWobbler>(AYJJWobbler::StaticClass(),
 				Spot + FVector(0, 0, YJJData::Tune(TEXT("Body.HoverHeight")) * Scale + GalleryLift), Toward.Rotation(), Params);
-			Model->Setup(Kind, 0.f, Spot, Kind == EYJJWobblerKind::Guard ? YJJMaxTowerLevel : 1);
+			Model->Setup(Kind, 0.f, Spot, (Kind == EYJJWobblerKind::Guard || Kind == EYJJWobblerKind::Hero) ? YJJMaxTowerLevel : 1);
 			Model->Showcase(Spot, Toward);
 			GalleryModels.Add(Model);
 		}
@@ -505,6 +515,71 @@ void UYJJAutoPilot::AddSpellTest()
 		Shot(TEXT("Play_42_CallEarly"));
 	});
 	Add(ShortWait, [this, Game] { Game->DebugReset(TestGold, true); });
+}
+
+void UYJJAutoPilot::AddHeroTest()
+{
+	UYJJGame* Game = UYJJGame::Get(GetWorld());
+	const FVector Start = UYJJGame::SnapToPath(YJJMap::PointAt(YJJData::Tune(TEXT("Hero.StartAt"))));
+	Add(SetupWait, [this, Game, Start] {
+		Game->DebugReset(TestGold, true);
+		Game->SetHeroEnabled(true);
+		View(Start, SpellViewYaw, SpellViewPitch, HeroViewDistance);
+	});
+	Add(YJJData::Tune(TEXT("Hero.FirstDelay")) + HeroSpawnWait, [this, Game] {
+		const AYJJWobbler* Hero = Game->GetHero();
+		Check(Hero && Hero->IsStanding(), TEXT("hero stands at start"));
+		Shot(TEXT("Play_50_Hero"));
+	});
+
+	// 보내기
+	const FVector Goal = UYJJGame::SnapToPath(YJJMap::PointAt(HeroMoveAt));
+	Add(ShortWait, [this, Game, Goal] {
+		Check(Game->MoveHero(Goal), TEXT("move hero"));
+		View(Goal, SpellViewYaw, SpellViewPitch, HeroViewDistance);
+	});
+	Add(HeroWalkWait, [this, Game, Goal] {
+		const AYJJWobbler* Hero = Game->GetHero();
+		const float Dist = Hero ? FVector::Dist2D(Hero->GetBodyLocation(), Goal) : -1.f;
+		Check(Hero && Hero->IsStanding() && Dist < HeroArriveDist, FString::Printf(TEXT("hero walked to the goal (%.0f cm off)"), Dist));
+		HeroStompsSeen = Game->GetHeroStomps();
+		Spawn(EYJJWobblerKind::Grunt, HeroSquad);
+	});
+
+	// 졸병 무리가 오면 배치기
+	Add(HeroFightWait - HeroFightSamples * HeroFightGap, [] {});
+	for (int32 i = 0; i < HeroFightSamples; ++i)
+	{
+		Add(HeroFightGap, [this, i] {
+			if (i == HeroShotSample)
+			{
+				Shot(TEXT("Play_51_HeroFight"));
+			}
+		});
+	}
+	Add(ShortWait, [this, Game] {
+		Check(Game->GetHeroStomps() > HeroStompsSeen, FString::Printf(TEXT("hero belly bumped (%d)"), Game->GetHeroStomps() - HeroStompsSeen));
+		Game->DebugReset(TestGold, false);
+	});
+
+	// 물에 빠뜨리면 잠시 뒤 다시 온다
+	Add(ShortWait, [this, Game] {
+		if (AYJJWobbler* Hero = Game->GetHero())
+		{
+			FVector Dir = FVector::ForwardVector;
+			YJJMap::PointAt(YJJMap::Project(Hero->GetBodyLocation()), &Dir);
+			Hero->Knock(FVector(-Dir.Y, Dir.X, 0.f) * HeroShoveSpeed + FVector(0, 0, HeroShoveUp), HeroShoveLimp, 0.f);
+		}
+	});
+	Add(HeroDrownWait, [this, Game] {
+		Check(!Game->GetHero() && Game->GetHeroRespawnLeft() > 0.f, FString::Printf(TEXT("hero fell in the water (back in %.1fs)"), Game->GetHeroRespawnLeft()));
+	});
+	Add(YJJData::Tune(TEXT("Hero.RespawnTime")) - HeroDrownWait + HeroBackExtra, [this, Game] {
+		const AYJJWobbler* Hero = Game->GetHero();
+		Check(Hero != nullptr, TEXT("hero came back"));
+		Game->SetHeroEnabled(false);
+		Game->DebugReset(TestGold, true);
+	});
 }
 
 void UYJJAutoPilot::AddWaveTest()
