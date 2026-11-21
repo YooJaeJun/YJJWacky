@@ -18,6 +18,7 @@
 FYJJWobblerTuning AYJJWobbler::CachedTuning;
 int32 AYJJWobbler::CachedGeneration = INDEX_NONE;
 TWeakObjectPtr<UPhysicalMaterial> AYJJWobbler::CachedMaterial;
+TWeakObjectPtr<UPhysicalMaterial> AYJJWobbler::CachedCoreMaterial;
 
 void FYJJWobblerTuning::Load()
 {
@@ -51,6 +52,7 @@ void FYJJWobblerTuning::Load()
 	CoreAngularDamping = YJJData::Tune(TEXT("Body.CoreAngularDamping"));
 	MaxSpin = YJJData::Tune(TEXT("Body.MaxSpin"));
 	Friction = YJJData::Tune(TEXT("Wobbler.Friction"));
+	CoreFriction = YJJData::Tune(TEXT("Wobbler.CoreFriction"));
 	Bounciness = YJJData::Tune(TEXT("Wobbler.Bounciness"));
 
 	HoverStiffness = YJJData::Tune(TEXT("Wobbler.HoverStiffness"));
@@ -89,6 +91,7 @@ void FYJJWobblerTuning::Load()
 	DarkShade = YJJData::Tune(TEXT("Wobbler.DarkShade"));
 
 	Stride = YJJData::Tune(TEXT("Gait.Stride"));
+	MaxStepRate = YJJData::Tune(TEXT("Gait.MaxStepRate"));
 	WalkSpeed = YJJData::Tune(TEXT("Gait.WalkSpeed"));
 	Sway = YJJData::Tune(TEXT("Gait.Sway"));
 	SwayBlown = YJJData::Tune(TEXT("Gait.SwayBlown"));
@@ -103,8 +106,11 @@ void FYJJWobblerTuning::Load()
 	LooseArmStiffness = YJJData::Tune(TEXT("Gait.LooseArmStiffness"));
 	HeadStiffness = YJJData::Tune(TEXT("Gait.HeadStiffness"));
 	HeadDamping = YJJData::Tune(TEXT("Gait.HeadDamping"));
-	ArmDroop = YJJData::Tune(TEXT("Gait.ArmDroop"));
-	ArmSwing = YJJData::Tune(TEXT("Gait.ArmSwing"));
+	ArmReach = YJJData::Tune(TEXT("Gait.ArmReach"));
+	ArmLift = YJJData::Tune(TEXT("Gait.ArmLift"));
+	ArmFlail = YJJData::Tune(TEXT("Gait.ArmFlail"));
+	ArmFlailSpeed = YJJData::Tune(TEXT("Gait.ArmFlailSpeed"));
+	ArmPhase = YJJData::Tune(TEXT("Gait.ArmPhase"));
 	ArmSpread = YJJData::Tune(TEXT("Gait.ArmSpread"));
 	LooseArmSpread = YJJData::Tune(TEXT("Gait.LooseArmSpread"));
 	ClubPoseForward = YJJData::Tune(TEXT("Gait.ClubPoseForward"));
@@ -169,18 +175,19 @@ const FYJJWobblerTuning& AYJJWobbler::Tun()
 	return CachedTuning;
 }
 
-UPhysicalMaterial* AYJJWobbler::BodyMaterial()
+UPhysicalMaterial* AYJJWobbler::BodyMaterial(bool bLimb)
 {
-	if (!CachedMaterial.IsValid())
+	TWeakObjectPtr<UPhysicalMaterial>& Cached = bLimb ? CachedMaterial : CachedCoreMaterial;
+	if (!Cached.IsValid())
 	{
-		UPhysicalMaterial* Material = NewObject<UPhysicalMaterial>(GetTransientPackage(), MaterialName);
+		UPhysicalMaterial* Material = NewObject<UPhysicalMaterial>(GetTransientPackage(), bLimb ? MaterialName : CoreMaterialName);
 		Material->AddToRoot();
-		CachedMaterial = Material;
+		Cached = Material;
 	}
 	// 통통 튀어야 웃기다 (다시 읽으면 바로 반영)
-	CachedMaterial->Friction = Tun().Friction;
-	CachedMaterial->Restitution = Tun().Bounciness;
-	return CachedMaterial.Get();
+	Cached->Friction = bLimb ? Tun().Friction : Tun().CoreFriction;
+	Cached->Restitution = Tun().Bounciness;
+	return Cached.Get();
 }
 
 const FYJJEnemyRow& AYJJWobbler::Spec(EYJJWobblerKind Kind)
@@ -236,7 +243,7 @@ void AYJJWobbler::ConfigureBody(UPrimitiveComponent* Body, float MassKg, bool bL
 	}
 	Body->SetGenerateOverlapEvents(false);
 	Body->SetCanEverAffectNavigation(false);
-	Body->SetPhysMaterialOverride(BodyMaterial());
+	Body->SetPhysMaterialOverride(BodyMaterial(bLimb));
 	Body->SetMassOverrideInKg(NAME_None, MassKg, true);
 	Body->SetLinearDamping(T.LinearDamping);
 	Body->SetAngularDamping(bLimb ? T.LimbAngularDamping : T.CoreAngularDamping);
@@ -775,7 +782,8 @@ void AYJJWobbler::Tick(float DeltaTime)
 
 	// 걸음 박자: 빨리 걸을수록 빨리 뒤뚱거린다
 	const float Speed2D = Velocity2D.Size();
-	Phase += Speed2D * DeltaTime * TWO_PI / FMath::Max(T.Stride * S, KINDA_SMALL_NUMBER);
+	// 빠른 놈은 박자를 올리는 대신 보폭을 넓힌다 (다리를 너무 급하게 차면 발발발 떤다)
+	Phase += FMath::Min(Speed2D * TWO_PI / FMath::Max(T.Stride * S, KINDA_SMALL_NUMBER), T.MaxStepRate) * DeltaTime;
 	const float Walk = FMath::Clamp(Speed2D / T.WalkSpeed, 0.f, 1.f);
 	Blown = FMath::Max(0.f, Blown - DeltaTime);
 	Dizzy = FMath::Max(0.f, Dizzy - DeltaTime);
@@ -826,8 +834,8 @@ void AYJJWobbler::Tick(float DeltaTime)
 		float Stiffness = T.ArmStiffness;
 		if (IsEnemy())
 		{
-			// 축 늘어진 팔: 살짝 앞으로 처지고, 같은 쪽 다리와 반대로 흔들린다
-			Hand = -Up + Forward * (T.ArmDroop + T.ArmSwing * FMath::Sin(Phase + i * PI) * Walk) + BodyRight * Side * T.ArmSpread;
+			// 좀비처럼 앞으로 뻗고 걸음에 맞춰 위아래로 휘적휘적
+			Hand = Forward * T.ArmReach + Up * (T.ArmLift + T.ArmFlail * FMath::Sin(Phase * T.ArmFlailSpeed + i * T.ArmPhase) * Walk) + BodyRight * Side * T.ArmSpread;
 		}
 		else if (i == 1)
 		{

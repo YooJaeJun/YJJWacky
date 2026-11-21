@@ -11,7 +11,9 @@ param(
     [int]$ResY = 900,
     [int]$TimeoutSec = 1500,
     [int]$Waves = 3,
-    [string]$Tests = ""
+    [string]$Tests = "",
+    # 임시: 테스트가 시끄러워서 기본은 소리 끔 (-Sound 로 켠다)
+    [switch]$Sound
 )
 
 $ProjectDir = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -21,6 +23,7 @@ $Log = Join-Path $ProjectDir "Saved\Logs\RunGame.log"
 $Shots = Join-Path $ProjectDir "Saved\Screenshots"
 
 $Flags = @()
+if (-not $Sound) { $Flags += "-nosound" }
 if ($Mode -eq "play") { $Flags += "-yjjplay", "-yjjquit", "-yjjwaves=$Waves"; if ($Tests) { $Flags += "-yjjtests=$Tests" }; Remove-Item (Join-Path $Shots "Play_*.png") -ErrorAction SilentlyContinue }
 
 $Args = @("`"$Project`"", "-game", "-windowed", "-ResX=$ResX", "-ResY=$ResY", "-WinX=40", "-WinY=40", "-nosplash", "-unattended", "-log", "-LogCmds=`"LogYJJWacky Verbose`"", "-abslog=`"$Log`"") + $Flags

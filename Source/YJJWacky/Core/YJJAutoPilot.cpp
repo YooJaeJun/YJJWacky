@@ -282,6 +282,11 @@ void UYJJAutoPilot::AddWalkTest(const FVector& Start)
 		bMeasureWobble = true;
 		YawSpinSum = TiltSpinSum = 0.0;
 		SpinSamples = 0;
+		for (int32 k = 0; k < KindCount; ++k)
+		{
+			KindYawSum[k] = 0.0;
+			KindSamples[k] = 0;
+		}
 	});
 	Add(WalkShotGap, [this] { Shot(TEXT("Play_02_Walk")); });
 	Add(WalkLaterWait, [this, Game] {
@@ -298,6 +303,13 @@ void UYJJAutoPilot::AddWalkTest(const FVector& Start)
 		Check(Best > WalkMinProgress, FString::Printf(TEXT("wobblers walk along the path (best %.0f cm)"), Best));
 		Check(Standing >= WalkMinStandingLater, FString::Printf(TEXT("still standing while walking (%d standing, %d alive)"), Standing, Game->GetEnemies().Num()));
 		bMeasureWobble = false;
+		for (int32 k = 0; k < KindCount; ++k)
+		{
+			if (KindSamples[k] > 0)
+			{
+				UE_LOG(LogYJJWacky, Display, TEXT("[AutoPilot] walk yaw spin %s %.2f rad/s"), *StaticEnum<EYJJWobblerKind>()->GetNameStringByValue(k), KindYawSum[k] / KindSamples[k]);
+			}
+		}
 		const double Samples = FMath::Max(SpinSamples, 1);
 		Check(YawSpinSum / Samples < WalkMaxYawSpin, FString::Printf(TEXT("walk yaw spin %.2f rad/s (max %.2f)"), YawSpinSum / Samples, WalkMaxYawSpin));
 		Check(TiltSpinSum / Samples < WalkMaxTiltSpin, FString::Printf(TEXT("walk tilt spin %.2f rad/s (max %.2f)"), TiltSpinSum / Samples, WalkMaxTiltSpin));
@@ -493,6 +505,9 @@ void UYJJAutoPilot::SampleWobble()
 		{
 			const FVector Spin = Enemy->GetBodySpin();
 			YawSpinSum += FMath::Abs(Spin.Z);
+			const int32 Kind = static_cast<int32>(Enemy->GetKind());
+			KindYawSum[Kind] += FMath::Abs(Spin.Z);
+			KindSamples[Kind]++;
 			TiltSpinSum += FVector2D(Spin.X, Spin.Y).Size();
 			SpinSamples++;
 		}

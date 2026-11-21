@@ -204,6 +204,10 @@ private:
 	double YawSpinSum = 0.0;
 	double TiltSpinSum = 0.0;
 	int32 SpinSamples = 0;
+	/** 종류별 좌우 돌기 (어느 놈이 와리가리인지) */
+	static constexpr int32 KindCount = static_cast<int32>(EYJJWobblerKind::Guard) + 1;
+	double KindYawSum[KindCount] = {};
+	int32 KindSamples[KindCount] = {};
 	void SampleWobble();
 	int32 StressFrames = 0;
 	float StressTime = 0.f;

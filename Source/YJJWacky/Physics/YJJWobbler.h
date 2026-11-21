@@ -25,7 +25,7 @@ struct FYJJWobblerTuning
 	float TorsoMass = 0.f, HeadMass = 0.f, ArmMass = 0.f, LegMass = 0.f;
 	float NeckSwing = 0.f, NeckTwist = 0.f, ShoulderSwing = 0.f, ShoulderTwist = 0.f, HipSwing = 0.f, HipTwist = 0.f;
 	float LinearDamping = 0.f, LimbAngularDamping = 0.f, CoreAngularDamping = 0.f, MaxSpin = 0.f;
-	float Friction = 0.f, Bounciness = 0.f;
+	float Friction = 0.f, CoreFriction = 0.f, Bounciness = 0.f;
 
 	// 버티는 힘·충격
 	float HoverStiffness = 0.f, HoverDamping = 0.f, UprightStiffness = 0.f, UprightDamping = 0.f, YawStiffness = 0.f, YawDamping = 0.f, FacingTurn = 0.f;
@@ -35,9 +35,9 @@ struct FYJJWobblerTuning
 	float LimpWind = 0.f, BlownTime = 0.f, DeadTime = 0.f, DeadPale = 0.f, DarkShade = 0.f;
 
 	// 걸음새
-	float Stride = 0.f, WalkSpeed = 0.f, Sway = 0.f, SwayBlown = 0.f, Lean = 0.f, BlownFirm = 0.f;
+	float Stride = 0.f, MaxStepRate = 0.f, WalkSpeed = 0.f, Sway = 0.f, SwayBlown = 0.f, Lean = 0.f, BlownFirm = 0.f;
 	float LegSwing = 0.f, LegStiffness = 0.f, LegDamping = 0.f, ArmStiffness = 0.f, ArmDamping = 0.f, ClubArmStiffness = 0.f, LooseArmStiffness = 0.f;
-	float HeadStiffness = 0.f, HeadDamping = 0.f, ArmDroop = 0.f, ArmSwing = 0.f, ArmSpread = 0.f;
+	float HeadStiffness = 0.f, HeadDamping = 0.f, ArmReach = 0.f, ArmLift = 0.f, ArmFlail = 0.f, ArmFlailSpeed = 0.f, ArmPhase = 0.f, ArmSpread = 0.f;
 	float LooseArmSpread = 0.f, ClubPoseForward = 0.f, ClubPoseRight = 0.f, ClubPoseUp = 0.f, ClubSpinUp = 0.f;
 
 	// 길 따라 걷기
@@ -119,7 +119,8 @@ public:
 private:
 	/** 지금 Tuning.csv 값 (다시 읽었으면 갱신) */
 	static const FYJJWobblerTuning& Tun();
-	static UPhysicalMaterial* BodyMaterial();
+	/** bLimb = 팔다리 (땅을 짚는다), 아니면 몸통·머리 (서로 부딪혀도 비비며 돌지 않게 미끄럽다) */
+	static UPhysicalMaterial* BodyMaterial(bool bLimb);
 	static void ConfigureBody(UPrimitiveComponent* Body, float MassKg, bool bLimb);
 
 	UPrimitiveComponent* AddBody(bool bSphere, const FVector& LocalCenter, float Radius, float HalfHeight, float MassKg, bool bLimb);
@@ -137,7 +138,9 @@ private:
 	static FYJJWobblerTuning CachedTuning;
 	static int32 CachedGeneration;
 	static TWeakObjectPtr<UPhysicalMaterial> CachedMaterial;
-	static constexpr const TCHAR* MaterialName = TEXT("YJJWobblerBody");
+	static TWeakObjectPtr<UPhysicalMaterial> CachedCoreMaterial;
+	static constexpr const TCHAR* MaterialName = TEXT("YJJWobblerLimb");
+	static constexpr const TCHAR* CoreMaterialName = TEXT("YJJWobblerCore");
 
 	// 눈동자: 머리 움직임을 한 박자 늦게 따라가며 덜렁거린다 (모양)
 	static constexpr float PupilVelocityFollow = 0.016f;

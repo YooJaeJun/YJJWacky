@@ -1,4 +1,4 @@
-#include "Core/YJJAudio.h"
+﻿#include "Core/YJJAudio.h"
 
 #include "Camera/PlayerCameraManager.h"
 #include "Data/YJJData.h"
@@ -48,7 +48,8 @@ void YJJAudio::Play(const UObject* WorldContext, const TCHAR* Cue, const FVector
 	const UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
 	const FYJJSoundRow* Row = YJJData::Sound(Cue);
 	USoundBase* Asset = Row ? LoadSound(Row->Asset) : nullptr;
-	if (!Asset || !World || !Throttle(World, Cue))
+	const float Master = YJJData::Tune(TEXT("Audio.Master"));
+	if (!Asset || !World || Master <= 0.f || !Throttle(World, Cue))
 	{
 		return;
 	}
@@ -64,15 +65,20 @@ void YJJAudio::Play(const UObject* WorldContext, const TCHAR* Cue, const FVector
 		}
 	}
 	const float Pitch = FMath::FRandRange(Row->PitchMin, Row->PitchMax) * PitchScale;
-	UGameplayStatics::PlaySound2D(WorldContext, Asset, Row->Volume * Scale, Pitch);
+	UGameplayStatics::PlaySound2D(WorldContext, Asset, Row->Volume * Scale * Master, Pitch);
 }
 
 void YJJAudio::StartMusic(const UObject* WorldContext)
 {
+	const float Master = YJJData::Tune(TEXT("Audio.Master"));
+	if (Master <= 0.f)
+	{
+		return;
+	}
 	const FYJJSoundRow* Row = YJJData::Sound(MusicCue);
 	if (USoundWave* Bgm = Row ? Cast<USoundWave>(LoadSound(Row->Asset)) : nullptr)
 	{
 		Bgm->bLooping = true;
-		UGameplayStatics::SpawnSound2D(WorldContext, Bgm, Row->Volume);
+		UGameplayStatics::SpawnSound2D(WorldContext, Bgm, Row->Volume * Master);
 	}
 }
