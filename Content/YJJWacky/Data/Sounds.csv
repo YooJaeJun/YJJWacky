@@ -24,6 +24,9 @@ Deny,SFX_Deny,1,1,1,골드 부족
 WaveStart,SFX_WaveStart,1,1,1,
 WaveClear,SFX_WaveClear,1,1,1,
 Chomp,SFX_Chomp,1,1,1,푸딩 뜯김
+BoulderFall,SFX_Whoosh,0.8,0.6,0.7,바위가 떨어지기 시작
+BoulderSlam,SFX_Boom,1,0.6,0.7,바위 쾅
+Reinforce,SFX_WaveStart,0.7,1.2,1.2,지원군
 Combo,SFX_Combo,1,1,1,떼죽음
 Win,SFX_Win,1,1,1,
 Lose,SFX_Lose,1,1,1,

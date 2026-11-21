@@ -10,6 +10,9 @@ Heavy,FFB4A2,28,0,330,0,무거워!
 Grab,FFFFFF,28,0,90,0,덥석!
 Fire,FFD23F,32,0,120,0,슝! / 저리 가!
 Strike,FFD23F,40,0,160,0,스트라이크!
+Early,FFE77C,30,0,220,0,일찍 불렀다! (출발점)
+Boulder,FFFFFF,46,0,200,0,쿵!
+Reinforce,B8D8FF,32,0,260,0,지원군 왔다!
 BannerWave,FFFFFF,76,0,0,1.8,웨이브 시작
 BannerClear,B8F28A,76,0,0,2.4,웨이브 막음
 BannerCombo,FFD23F,76,0,0,1.8,떼죽음·대장 격파

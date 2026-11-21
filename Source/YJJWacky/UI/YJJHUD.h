@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Core/YJJGame.h"
@@ -11,7 +11,7 @@ struct FCompositeFont;
 
 /**
  * 게임 HUD (Canvas, 위젯 에셋 없음).
- * 푸딩 체력·골드, 웨이브, 타워 카드, 출격 버튼, 딱밤 게이지, 떠오르는 글자, 결과 카드.
+ * 푸딩 체력·골드, 웨이브, 타워 카드, 출격 버튼(일찍 부르기), 딱밤·주문 버튼, 주문 조준 원, 떠오르는 글자, 결과 카드(별점).
  * 배치·글자 크기는 HudLayout.csv, 아이콘은 HudIcons.csv, 색은 Colors.csv (Hud*), 글자는 Localization.csv.
  */
 UCLASS()
@@ -22,6 +22,8 @@ class YJJWACKY_API AYJJHUD : public AHUD
 public:
 	static constexpr int32 ButtonStartWave = 10;
 	static constexpr int32 ButtonRestart = 11;
+	/** 주문 버튼: ButtonSpell + EYJJSpell */
+	static constexpr int32 ButtonSpell = 20;
 
 	virtual void DrawHUD() override;
 
@@ -53,6 +55,12 @@ private:
 	void Rect(float X, float Y, float W, float H, const FLinearColor& Color);
 	void Circle(float X, float Y, float R, const FLinearColor& Color, int32 Sides = CircleSidesDefault);
 	void Heart(float X, float Y, float R, const FLinearColor& Color);
+	/** 12시부터 시계 방향으로 Fraction 만큼 채운 부채꼴 */
+	void Pie(float X, float Y, float R, float Fraction, const FLinearColor& Color);
+	/** 별 (꼭짓점 다섯) */
+	void Star(float X, float Y, float R, const FLinearColor& Color);
+	/** 땅 위 원 (월드 좌표 Center, 반지름 Radius cm) */
+	void GroundRing(const FVector& Center, float Radius, const FLinearColor& Color);
 	/** HudIcons.csv 의 Icon 을 (X, Y) 가운데 반지름 R 로 그린다 */
 	void DrawIcon(const FString& Icon, float X, float Y, float R);
 	void AddButton(float X, float Y, float W, float H, int32 Id);
@@ -62,6 +70,8 @@ private:
 	void DrawCards(const UYJJGame& Game, const AYJJCommander& Commander);
 	void DrawStart(const UYJJGame& Game);
 	void DrawFlick(const UYJJGame& Game);
+	void DrawSpells(const UYJJGame& Game, const AYJJCommander& Commander);
+	void DrawAim(const UYJJGame& Game, const AYJJCommander& Commander);
 	void DrawWorld(const UYJJGame& Game, const AYJJCommander& Commander);
 	void DrawBanner(const UYJJGame& Game);
 	void DrawEnd(const UYJJGame& Game);
@@ -91,6 +101,12 @@ private:
 	static constexpr float HeartWide = 1.03f;
 	static constexpr float HeartTip = 1.05f;
 	static constexpr int32 HeartSides = 16;
+
+	// 별: 꼭짓점 다섯, 12시 방향부터
+	static constexpr int32 StarPoints = 5;
+	static constexpr float StarStartDeg = -90.f;
+	/** 결과 카드 별 수 */
+	static constexpr int32 MaxStars = 3;
 
 	TSharedPtr<const FCompositeFont> GameFont;
 	TArray<FButton> Buttons;

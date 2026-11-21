@@ -79,7 +79,25 @@ public:
 	bool Upgrade(int32 Pad);
 	bool Sell(int32 Pad);
 
+	/** 다음 웨이브를 부른다. 자동으로 나오기 전에 부르면 남은 시간만큼 골드 (킹덤러쉬식 일찍 부르기) */
 	void StartWave();
+	/** 지금 다음 웨이브를 부를 수 있나: 웨이브 사이, 또는 이번 웨이브가 다 나온 뒤 */
+	bool CanCallWave() const;
+	/** 다음 웨이브가 저절로 나오기까지 남은 시간(초). 시계가 안 돌면 음수 */
+	float GetNextWaveTimer() const { return NextWaveTimer; }
+	/** 지금 부르면 받는 골드 */
+	int32 GetEarlyBonus() const;
+	/** 별점: 이기면 푸딩 체력이 남은 만큼 1~3, 지면 0 */
+	int32 GetStars() const;
+
+	// 주문 (Tuning.csv Spell.<이름>.*)
+	static float SpellTune(EYJJSpell Spell, const TCHAR* Name);
+	static FString SpellName(EYJJSpell Spell);
+	/** 0 = 방금 씀, 1 = 다시 쓸 수 있다 */
+	float GetSpellCharge(EYJJSpell Spell) const;
+	bool CanCast(EYJJSpell Spell) const;
+	/** Target 은 땅 위 점 */
+	bool CastSpell(EYJJSpell Spell, const FVector& Target);
 
 	/** 딱밤: 적 하나를 손가락으로 튕긴다 */
 	bool Flick(AYJJWobbler* Enemy, const FVector& Direction);
@@ -92,7 +110,9 @@ public:
 	void OnEnemyReachedBase(AYJJWobbler* Wobbler);
 	/** 살아 있는 적 */
 	const TArray<TObjectPtr<AYJJWobbler>>& GetEnemies() const { return Enemies; }
-	const TArray<TObjectPtr<AYJJWobbler>>& GetGuards() const { return Guards; }
+	/** 아군: 막사 병사 + 주문 지원군 */
+	TArray<TObjectPtr<AYJJWobbler>> GetGuards() const;
+	const TArray<TObjectPtr<AYJJWobbler>>& GetHelpers() const { return Helpers; }
 	AYJJWobbler* FindNearestEnemy(const FVector& Location, float Radius) const;
 
 	// HUD. Style은 TextStyles.csv 의 행 이름, Scale은 크기 배율
@@ -156,6 +176,9 @@ private:
 
 	AYJJArena* Arena();
 	void SpawnGuard(int32 Pad, int32 Level);
+	void CastBoulder(const FVector& Target);
+	void CastReinforce(const FVector& Target);
+	void TickHelpers(float DeltaTime);
 	void EndGame(bool bWon);
 
 	UPROPERTY()
@@ -172,6 +195,13 @@ private:
 	TObjectPtr<AYJJArena> CachedArena;
 
 	TArray<float> GuardRespawn;
+
+	/** 주문으로 떨어진 지원군과 남은 시간 (같은 순서) */
+	UPROPERTY()
+	TArray<TObjectPtr<AYJJWobbler>> Helpers;
+	TArray<float> HelperLife;
+	float SpellCooldown[YJJSpellCount] = {};
+	float NextWaveTimer = -1.f;
 
 	EYJJPhase Phase = EYJJPhase::Build;
 	int32 Gold = 0;

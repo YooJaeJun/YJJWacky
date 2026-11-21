@@ -77,6 +77,9 @@ Start.LabelOutline,3,
 Start.KeyY,0.8,
 Start.KeySize,16,
 Start.KeyAlpha,0.85,
+Start.TimerY,22,버튼 위 남은 시간 글자
+Start.TimerSize,20,
+Start.TimerBarH,8,버튼 아래 줄어드는 막대
 Intro.W,760,첫 안내
 Intro.H,84,
 Intro.Y,140,
@@ -89,6 +92,22 @@ Flick.Bottom,78,
 Flick.R,40,
 Flick.Border,5,
 Flick.Size,22,
+Spell.X,170,딱밤 옆 주문 버튼 (가운데 X)
+Spell.Step,104,
+Spell.R,40,
+Spell.Border,5,
+Spell.Selected,10,고른 주문 금테
+Spell.IconR,30,
+Spell.NameY,56,이름 (가운데 아래)
+Spell.NameSize,17,
+Spell.KeyXY,32,단축키 동그라미 (가운데에서 왼쪽 위로)
+Spell.KeyOuter,13,
+Spell.KeyInner,10,
+Spell.KeySize,14,
+Spell.PieSides,36,쿨타임 그늘 조각 수 (한 바퀴)
+Aim.Sides,48,땅 위 조준 원
+Aim.Thickness,3,
+Aim.Inner,0.55,안쪽 원 비율
 World.HeavyKg,150,이 무게 이상이면 몸무게 표를 단다
 World.BarHeightPerScale,125,
 World.BarW,26,
@@ -115,7 +134,7 @@ Banner.Outline,6,
 End.Delay,0.6,결과 카드
 End.FadeIn,0.5,
 End.W,640,
-End.H,460,
+End.H,560,
 End.Slide,40,
 End.Border,6,
 End.BorderCorner,26,
@@ -123,9 +142,19 @@ End.Corner,22,
 End.TitleY,70,
 End.TitleSize,54,
 End.TitleOutline,4,
-End.WaveY,132,
+Stars.Y,138,결과 별 (패널 위에서)
+Stars.R,36,
+Stars.Gap,92,
+Stars.Inner,0.45,오목점 반지름 비율
+Stars.Outline,5,
+Stars.MiddleLift,12,가운데 별만 살짝 위로
+Stars.Delay,0.3,카드가 뜬 뒤 첫 별까지(초)
+Stars.Step,0.25,별 사이(초)
+Stars.PopTime,0.3,
+Stars.Bounce,0.35,톡 커지는 정도
+End.WaveY,212,
 End.WaveSize,26,
-End.StatsY,190,
+End.StatsY,262,
 End.StatsStep,42,
 End.StatsInset,110,
 End.StatLabelSize,26,

@@ -23,7 +23,7 @@ struct FYJJTowerTrial
  * 자동 테스트. 명령줄 -yjjplay 또는 콘솔 yjj.AutoPlay.
  * 걷기 -> 타워 종류별 -> 강화 -> 부하 -> 웨이브 방어를 차례로 돌리며
  * 로그([AutoPilot] PASS/FAIL)와 스크린샷(Saved/Screenshots/Play_*.png)을 남긴다.
- * -yjjquit 이 있으면 끝나고 게임을 끈다. -yjjtests=walk,towers,upgrade,stress,waves 로 일부만, -yjjwaves=N 으로 웨이브 수.
+ * -yjjquit 이 있으면 끝나고 게임을 끈다. -yjjtests=walk,towers,upgrade,spells,stress,waves 로 일부만, -yjjwaves=N 으로 웨이브 수.
  */
 UCLASS()
 class YJJWACKY_API UYJJAutoPilot : public UTickableWorldSubsystem
@@ -60,6 +60,8 @@ private:
 	void AddWalkTest(const FVector& Start);
 	void AddTowerTests();
 	void AddUpgradeTests();
+	/** 바위 주문이 졸병 무리를 쓰러뜨리는지, 지원군이 내려왔다 돌아가는지, 일찍 부르면 골드를 받는지 */
+	void AddSpellTest();
 	void AddStressTest();
 	void AddWaveTest();
 	/** 몹 여섯 종을 한 줄로 세우고, 타워 다섯 종을 Lv1·Lv3 로 지어 가까이서 찍는다 (모양 확인용, 판정 없음) */
@@ -137,6 +139,24 @@ private:
 	static constexpr float SlingShotGap = 1.5f;
 	static constexpr float SlingCheckWait = 6.f;
 
+	// ---------------------------------------------------------------- 주문
+	static constexpr int32 SpellSquad = 8;
+	/** 출발점에서 길을 따라 이만큼(cm) 간 곳에 바위를 떨어뜨린다 */
+	static constexpr float SpellBoulderAt = 750.f;
+	static constexpr float SpellWalkWait = 2.f;
+	static constexpr int32 SpellSamples = 16;
+	static constexpr float SpellSampleGap = 0.25f;
+	static constexpr int32 SpellShotSample = 5;
+	static constexpr int32 SpellMinHits = 3;
+	static constexpr float SpellReinforceAt = 1600.f;
+	static constexpr float SpellLandWait = 4.f;
+	static constexpr int32 SpellMinStanding = 1;
+	static constexpr float SpellExpireExtra = 1.f;
+	static constexpr float SpellCallExtra = 1.5f;
+	static constexpr float SpellViewYaw = -90.f;
+	static constexpr float SpellViewPitch = -32.f;
+	static constexpr float SpellViewDistance = 2200.f;
+
 	// ---------------------------------------------------------------- 부하
 	static constexpr int32 StressBatches = 6;
 	static constexpr float StressBatchGap = 0.6f;
@@ -188,6 +208,10 @@ private:
 
 	/** 전시용으로 세운 흐느적이 (끝나면 치운다. 병사는 게임이 따로 세지 않는다) */
 	TArray<TWeakObjectPtr<AActor>> GalleryModels;
+
+	/** 주문 시험 중 센 값 */
+	int32 SpellKills = 0;
+	int32 SpellLimpMax = 0;
 
 	TArray<FStep> Steps;
 	int32 StepIndex = INDEX_NONE;

@@ -1,9 +1,10 @@
-#include "Core/YJJGame.h"
+﻿#include "Core/YJJGame.h"
 
 #include "Core/YJJAudio.h"
 #include "Data/YJJLoc.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Gameplay/YJJBoulder.h"
 #include "Gameplay/YJJEffects.h"
 #include "Gameplay/YJJTower.h"
 #include "Kismet/GameplayStatics.h"
@@ -251,11 +252,64 @@ bool UYJJGame::Sell(int32 Pad)
 
 // ============================================================ 웨이브
 
+bool UYJJGame::CanCallWave() const
+{
+	if (Wave >= GetWaveCount())
+	{
+		return false;
+	}
+	// 이번 웨이브가 다 나왔으면 아직 남은 적이 있어도 다음 웨이브를 부를 수 있다
+	return Phase == EYJJPhase::Build || (Phase == EYJJPhase::Wave && SpawnIndex >= SpawnQueue.Num());
+}
+
+int32 UYJJGame::GetEarlyBonus() const
+{
+	return (Wave > 0 && NextWaveTimer > 0.f) ? FMath::RoundToInt(NextWaveTimer * Tune(TEXT("Wave.EarlyGoldPerSecond"))) : 0;
+}
+
+int32 UYJJGame::GetStars() const
+{
+	if (Phase != EYJJPhase::Won)
+	{
+		return 0;
+	}
+	const float Ratio = static_cast<float>(Lives) / FMath::Max(1, GetMaxLives());
+	return Ratio >= Tune(TEXT("Stars.ThreeRatio")) ? 3 : (Ratio >= Tune(TEXT("Stars.TwoRatio")) ? 2 : 1);
+}
+
+TArray<TObjectPtr<AYJJWobbler>> UYJJGame::GetGuards() const
+{
+	TArray<TObjectPtr<AYJJWobbler>> All;
+	for (AYJJWobbler* Guard : Guards)
+	{
+		if (IsValid(Guard))
+		{
+			All.Add(Guard);
+		}
+	}
+	for (AYJJWobbler* Helper : Helpers)
+	{
+		if (IsValid(Helper))
+		{
+			All.Add(Helper);
+		}
+	}
+	return All;
+}
+
 void UYJJGame::StartWave()
 {
-	if (Phase != EYJJPhase::Build || Wave >= GetWaveCount())
+	if (!CanCallWave())
 	{
 		return;
+	}
+	const int32 Early = GetEarlyBonus();
+	NextWaveTimer = -1.f;
+	if (Early > 0)
+	{
+		Gold += Early;
+		AddFloater(YJJMap::Path()[0], YJJLoc::Format(TEXT("Float.Early"), { Early }), TEXT("Early"));
+		YJJAudio::Play(this, TEXT("Coin"));
 	}
 	Wave++;
 	Phase = EYJJPhase::Wave;
@@ -278,7 +332,7 @@ void UYJJGame::StartWave()
 	SpawnQueue.Sort([](const FSpawn& A, const FSpawn& B) { return A.Time < B.Time; });
 	ShowBanner(YJJLoc::Format(TEXT("Banner.Wave"), { Wave }), TEXT("BannerWave"));
 	YJJAudio::Play(this, TEXT("WaveStart"));
-	UE_LOG(LogYJJWacky, Display, TEXT("[Game] wave %d start (%d enemies, %d kg)"), Wave, SpawnQueue.Num(), Def.BudgetKg);
+	UE_LOG(LogYJJWacky, Display, TEXT("[Game] wave %d start (%d enemies, %d kg, early bonus %d)"), Wave, SpawnQueue.Num(), Def.BudgetKg, Early);
 }
 
 AYJJWobbler* UYJJGame::SpawnEnemy(EYJJWobblerKind Kind)
@@ -451,6 +505,119 @@ bool UYJJGame::Flick(AYJJWobbler* Enemy, const FVector& Direction)
 	return true;
 }
 
+// ============================================================ 주문
+
+float UYJJGame::SpellTune(EYJJSpell Spell, const TCHAR* Name)
+{
+	return Tune(*FString::Printf(TEXT("Spell.%s.%s"), *StaticEnum<EYJJSpell>()->GetNameStringByValue(static_cast<int64>(Spell)), Name));
+}
+
+FString UYJJGame::SpellName(EYJJSpell Spell)
+{
+	return YJJLoc::Get(*FString::Printf(TEXT("Spell.%s"), *StaticEnum<EYJJSpell>()->GetNameStringByValue(static_cast<int64>(Spell))));
+}
+
+float UYJJGame::GetSpellCharge(EYJJSpell Spell) const
+{
+	return 1.f - FMath::Clamp(SpellCooldown[static_cast<int32>(Spell)] / FMath::Max(SpellTune(Spell, TEXT("Cooldown")), KINDA_SMALL_NUMBER), 0.f, 1.f);
+}
+
+bool UYJJGame::CanCast(EYJJSpell Spell) const
+{
+	return Phase != EYJJPhase::Won && Phase != EYJJPhase::Lost && SpellCooldown[static_cast<int32>(Spell)] <= 0.f;
+}
+
+bool UYJJGame::CastSpell(EYJJSpell Spell, const FVector& Target)
+{
+	if (!CanCast(Spell))
+	{
+		YJJAudio::Play(this, TEXT("Deny"));
+		return false;
+	}
+	SpellCooldown[static_cast<int32>(Spell)] = SpellTune(Spell, TEXT("Cooldown"));
+	switch (Spell)
+	{
+	case EYJJSpell::Boulder:
+		CastBoulder(Target);
+		break;
+	case EYJJSpell::Reinforce:
+		CastReinforce(Target);
+		break;
+	}
+	UE_LOG(LogYJJWacky, Display, TEXT("[Game] spell %s at (%.0f, %.0f)"), *StaticEnum<EYJJSpell>()->GetNameStringByValue(static_cast<int64>(Spell)), Target.X, Target.Y);
+	return true;
+}
+
+void UYJJGame::CastBoulder(const FVector& Target)
+{
+	// 길을 거꾸로 (적이 오는 쪽으로) 굴러간다
+	FVector PathDir = FVector::ForwardVector;
+	YJJMap::PointAt(YJJMap::Project(Target), &PathDir);
+	const FVector Ground(Target.X, Target.Y, 0.f);
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AYJJBoulder* Boulder = GetWorld()->SpawnActor<AYJJBoulder>(AYJJBoulder::StaticClass(), Ground + FVector(0, 0, SpellTune(EYJJSpell::Boulder, TEXT("DropHeight"))),
+		FRotator::ZeroRotator, Params);
+	if (Boulder)
+	{
+		Boulder->Drop(Ground, -PathDir);
+	}
+	YJJAudio::Play(this, TEXT("BoulderFall"), Ground);
+}
+
+void UYJJGame::CastReinforce(const FVector& Target)
+{
+	// 하늘에서 농민 병사들을 떨어뜨린다: 길과 나란히 줄 서서 적이 오는 쪽을 본다
+	FVector PathDir = FVector::ForwardVector;
+	YJJMap::PointAt(YJJMap::Project(Target), &PathDir);
+	const FVector Across(-PathDir.Y, PathDir.X, 0.f);
+	const int32 Count = FMath::Max(1, FMath::RoundToInt(SpellTune(EYJJSpell::Reinforce, TEXT("Count"))));
+	const float Spacing = SpellTune(EYJJSpell::Reinforce, TEXT("Spacing"));
+	const float Scale = AYJJWobbler::Spec(EYJJWobblerKind::Guard).Scale;
+	const int32 Level = FMath::Clamp(FMath::RoundToInt(SpellTune(EYJJSpell::Reinforce, TEXT("Level"))), 1, YJJMaxTowerLevel);
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	for (int32 i = 0; i < Count; ++i)
+	{
+		const float Offset = (i - (Count - 1) * 0.5f) * Spacing;
+		const FVector Post = FVector(Target.X, Target.Y, 0.f) + Across * Offset;
+		// 한 명씩 다른 높이에서 떨어진다
+		const FVector Start = Post + FVector(0, 0, StandHeightPerScale * Scale + SpellTune(EYJJSpell::Reinforce, TEXT("DropHeight")) + i * SpellTune(EYJJSpell::Reinforce, TEXT("DropStagger")));
+		AYJJWobbler* Helper = GetWorld()->SpawnActor<AYJJWobbler>(AYJJWobbler::StaticClass(), Start, (-PathDir).Rotation(), Params);
+		if (Helper)
+		{
+			Helper->Setup(EYJJWobblerKind::Guard, 0.f, Post, Level);
+			Helpers.Add(Helper);
+			HelperLife.Add(SpellTune(EYJJSpell::Reinforce, TEXT("Life")));
+		}
+	}
+	AddFloater(FVector(Target.X, Target.Y, 0.f), YJJLoc::Get(TEXT("Float.Reinforce")), TEXT("Reinforce"));
+	YJJAudio::Play(this, TEXT("Reinforce"), Target);
+}
+
+void UYJJGame::TickHelpers(float DeltaTime)
+{
+	for (int32 i = Helpers.Num() - 1; i >= 0; --i)
+	{
+		HelperLife[i] -= DeltaTime;
+		if (!IsValid(Helpers[i]) || HelperLife[i] <= 0.f)
+		{
+			if (IsValid(Helpers[i]))
+			{
+				// 할 일 끝: 펑 하고 집에 간다
+				AYJJEffects::Burst(this, TEXT("GuardPoof"), Helpers[i]->GetBodyLocation());
+				Helpers[i]->Destroy();
+			}
+			Helpers.RemoveAt(i);
+			HelperLife.RemoveAt(i);
+		}
+	}
+	for (float& Cooldown : SpellCooldown)
+	{
+		Cooldown = FMath::Max(0.f, Cooldown - DeltaTime);
+	}
+}
+
 void UYJJGame::DebugReset(int32 InGold, bool bClear)
 {
 	Gold = InGold;
@@ -458,6 +625,20 @@ void UYJJGame::DebugReset(int32 InGold, bool bClear)
 	{
 		return;
 	}
+	for (AYJJWobbler* Helper : Helpers)
+	{
+		if (IsValid(Helper))
+		{
+			Helper->Destroy();
+		}
+	}
+	Helpers.Reset();
+	HelperLife.Reset();
+	for (float& Cooldown : SpellCooldown)
+	{
+		Cooldown = 0.f;
+	}
+	NextWaveTimer = -1.f;
 	for (AYJJWobbler* Enemy : Enemies)
 	{
 		if (IsValid(Enemy))
@@ -554,14 +735,34 @@ void UYJJGame::Tick(float DeltaTime)
 		}
 	}
 
+	TickHelpers(DeltaTime);
+
 	if (Phase == EYJJPhase::Won || Phase == EYJJPhase::Lost)
 	{
 		EndAge += RealDelta;
 		return;
 	}
+	if (Phase == EYJJPhase::Build)
+	{
+		// 웨이브 사이: 시계가 다 되면 저절로 다음 웨이브 (첫 웨이브는 기다린다)
+		if (NextWaveTimer >= 0.f)
+		{
+			NextWaveTimer -= DeltaTime;
+			if (NextWaveTimer <= 0.f)
+			{
+				NextWaveTimer = 0.f;
+				StartWave();
+			}
+		}
+		return;
+	}
 	if (Phase != EYJJPhase::Wave)
 	{
 		return;
+	}
+	if (NextWaveTimer > 0.f)
+	{
+		NextWaveTimer = FMath::Max(0.f, NextWaveTimer - DeltaTime);
 	}
 
 	WaveTime += DeltaTime;
@@ -569,6 +770,11 @@ void UYJJGame::Tick(float DeltaTime)
 	{
 		SpawnEnemy(SpawnQueue[SpawnIndex].Kind);
 		SpawnIndex++;
+	}
+	if (SpawnIndex >= SpawnQueue.Num() && NextWaveTimer < 0.f && Wave < GetWaveCount())
+	{
+		// 이번 웨이브가 다 나왔다: 다음 웨이브 시계를 켠다 (일찍 부르면 남은 시간만큼 골드)
+		NextWaveTimer = Tune(TEXT("Wave.CallWindow"));
 	}
 	if (SpawnIndex >= SpawnQueue.Num() && Enemies.Num() == 0)
 	{
@@ -580,6 +786,7 @@ void UYJJGame::Tick(float DeltaTime)
 			return;
 		}
 		Phase = EYJJPhase::Build;
+		NextWaveTimer = FMath::Max(NextWaveTimer, Tune(TEXT("Wave.BuildTime")));
 		const int32 Bonus = FMath::RoundToInt(Tune(TEXT("Game.WaveBonusBase")) + Wave * Tune(TEXT("Game.WaveBonusPerWave")));
 		Gold += Bonus;
 		ShowBanner(YJJLoc::Format(TEXT("Banner.WaveClear"), { Wave, Bonus }), TEXT("BannerClear"));

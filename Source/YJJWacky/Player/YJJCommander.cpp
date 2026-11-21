@@ -1,6 +1,7 @@
-#include "Player/YJJCommander.h"
+﻿#include "Player/YJJCommander.h"
 
 #include "Camera/CameraComponent.h"
+#include "Core/YJJAudio.h"
 #include "Data/YJJData.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -81,6 +82,32 @@ void AYJJCommander::HandleButton(int32 Button)
 	{
 		RestartArena();
 	}
+	else if (Button >= AYJJHUD::ButtonSpell && Button < AYJJHUD::ButtonSpell + YJJSpellCount)
+	{
+		ToggleSpell(Button - AYJJHUD::ButtonSpell);
+	}
+}
+
+void AYJJCommander::ToggleSpell(int32 Spell)
+{
+	UYJJGame* Game = UYJJGame::Get(this);
+	if (!Game)
+	{
+		return;
+	}
+	if (PendingSpell == Spell)
+	{
+		PendingSpell = INDEX_NONE;
+	}
+	else if (Game->CanCast(static_cast<EYJJSpell>(Spell)))
+	{
+		PendingSpell = Spell;
+	}
+	else
+	{
+		// 아직 차는 중
+		YJJAudio::Play(this, TEXT("Deny"));
+	}
 }
 
 void AYJJCommander::PlayerTick(float DeltaTime)
@@ -123,6 +150,18 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 		}
 	}
 	const bool bEnded = Game->GetPhase() == EYJJPhase::Won || Game->GetPhase() == EYJJPhase::Lost;
+	const FKey SpellKeys[YJJSpellCount] = { EKeys::Z, EKeys::X };
+	for (int32 i = 0; i < YJJSpellCount; ++i)
+	{
+		if (WasInputKeyJustPressed(SpellKeys[i]) && !bEnded)
+		{
+			ToggleSpell(i);
+		}
+	}
+	if (bEnded || WasInputKeyJustPressed(EKeys::Escape))
+	{
+		PendingSpell = INDEX_NONE;
+	}
 	if (WasInputKeyJustPressed(EKeys::SpaceBar) || WasInputKeyJustPressed(EKeys::Enter))
 	{
 		Game->StartWave();
@@ -147,12 +186,15 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 	const int32 Button = (bMouse && Hud) ? Hud->HitTest(Mouse) : INDEX_NONE;
 
 	HoverPad = INDEX_NONE;
+	bAimValid = false;
 	FVector RayOrigin, RayDir;
 	if (bMouse && Button == INDEX_NONE && !bEnded && DeprojectScreenPositionToWorld(MouseX, MouseY, RayOrigin, RayDir) && RayDir.Z < -KINDA_SMALL_NUMBER)
 	{
 		const FVector Ground = RayOrigin + RayDir * (-RayOrigin.Z / RayDir.Z);
+		AimPoint = Ground;
+		bAimValid = true;
 		const TArray<YJJMap::FPad>& Pads = YJJMap::Pads();
-		for (int32 i = 0; i < Pads.Num(); ++i)
+		for (int32 i = 0; i < Pads.Num() && PendingSpell == INDEX_NONE; ++i)
 		{
 			if (FVector::DistSquared2D(Ground, Pads[i].Location) < FMath::Square(YJJMap::PadRadius() + YJJData::Tune(TEXT("Camera.PadPickExtra"))))
 			{
@@ -180,6 +222,14 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 		if (Button != INDEX_NONE)
 		{
 			HandleButton(Button);
+		}
+		else if (PendingSpell != INDEX_NONE)
+		{
+			// 고른 주문을 커서 아래 땅에 쓴다
+			if (bAimValid && Game->CastSpell(static_cast<EYJJSpell>(PendingSpell), AimPoint))
+			{
+				PendingSpell = INDEX_NONE;
+			}
 		}
 		else if (HoverPad != INDEX_NONE)
 		{
@@ -217,8 +267,15 @@ void AYJJCommander::PlayerTick(float DeltaTime)
 			}
 		}
 	}
-	if (WasInputKeyJustPressed(EKeys::RightMouseButton) && HoverPad != INDEX_NONE)
+	if (WasInputKeyJustPressed(EKeys::RightMouseButton))
 	{
-		Game->Sell(HoverPad);
+		if (PendingSpell != INDEX_NONE)
+		{
+			PendingSpell = INDEX_NONE;
+		}
+		else if (HoverPad != INDEX_NONE)
+		{
+			Game->Sell(HoverPad);
+		}
 	}
 }

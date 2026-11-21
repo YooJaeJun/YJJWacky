@@ -51,6 +51,16 @@ HudHealth,FF5C5C,1,적 체력 막대
 HudWeight,FFD6A5,1,몸무게 표
 HudButton,F2542D,1,
 HudButtonHover,FF7A45,1,
+Boulder,8C8579,1,바위 주문
+HudSpellShade,1E2438,0.7,주문 쿨타임 그늘
+HudAim,FFE77C,0.9,주문 조준 원
+HudAimFalling,FF6B6B,0.9,떨어지는 바위 그림자
+HudStarOff,2B3350,1,못 받은 별
+IconRock,9C9588,1,
+IconRockDark,6B655B,1,
+IconRockLight,C9C3B6,1,
+IconSkin,F2C9A0,1,
+IconStraw,E8C35A,1,
 IconRed,EF4444,1,
 IconSteel,334155,1,
 IconWood,9A6B3F,1,

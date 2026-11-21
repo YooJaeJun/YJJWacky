@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Core/YJJGame.h"
@@ -28,7 +28,8 @@ public:
  * 플레이어 조작.
  *  WASD/방향키 이동 · 휠 확대 · Q/E 회전
  *  1~5 타워 고르기 · 빈 발판 좌클릭 건설 · 지은 타워 좌클릭 강화 · 우클릭 판매 · 적 좌클릭 딱밤
- *  Space 다음 웨이브 · R 다시 하기 (끝난 뒤)
+ *  Z/X 주문 고르기 -> 땅 좌클릭으로 쓰기 (우클릭·Esc 취소)
+ *  Space 다음 웨이브 (일찍 부르면 골드) · R 다시 하기 (끝난 뒤)
  */
 UCLASS()
 class YJJWACKY_API AYJJCommander : public APlayerController
@@ -43,6 +44,10 @@ public:
 
 	EYJJTowerType GetSelected() const { return Selected; }
 	int32 GetHoverPad() const { return HoverPad; }
+	/** 쓰려고 고른 주문 (땅을 찍기를 기다리는 중). 없으면 INDEX_NONE */
+	int32 GetPendingSpell() const { return PendingSpell; }
+	/** 커서 아래 땅 (주문 조준) */
+	bool GetAim(FVector& OutPoint) const { OutPoint = AimPoint; return bAimValid; }
 
 	/** 자동 테스트·연출용 카메라 지정 */
 	void SetView(const FVector& InFocus, float InYaw, float InPitch, float InDistance);
@@ -52,9 +57,14 @@ public:
 private:
 	void ApplyCamera();
 	void HandleButton(int32 Button);
+	/** 주문을 고르거나, 이미 골랐으면 취소 */
+	void ToggleSpell(int32 Spell);
 
 	EYJJTowerType Selected = EYJJTowerType::Punch;
 	int32 HoverPad = INDEX_NONE;
+	int32 PendingSpell = INDEX_NONE;
+	FVector AimPoint = FVector::ZeroVector;
+	bool bAimValid = false;
 
 	/** 한 프레임 실시간 최대 (멈췄다 풀릴 때 카메라가 튀지 않게) */
 	static constexpr float MaxRealDelta = 0.1f;

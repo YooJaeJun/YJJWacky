@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "YJJTypes.generated.h"
@@ -26,5 +26,14 @@ enum class EYJJTowerType : uint8
 	Sling,		// 새총: 가벼운 놈을 붙잡아 탄알로 쏜다
 };
 
+/** 주문 (킹덤러쉬식: 쿨타임이 차면 버튼을 누르고 땅을 찍는다). Tuning.csv Spell.<이름>.* */
+UENUM()
+enum class EYJJSpell : uint8
+{
+	Boulder,	// 하늘에서 큰 바위가 떨어져 쾅, 길을 거꾸로 굴러간다
+	Reinforce,	// 농민 지원군 둘을 하늘에서 떨어뜨린다 (잠깐 싸우고 사라짐)
+};
+
 inline constexpr int32 YJJTowerTypeCount = 5;
+inline constexpr int32 YJJSpellCount = 2;
 inline constexpr int32 YJJMaxTowerLevel = 3;

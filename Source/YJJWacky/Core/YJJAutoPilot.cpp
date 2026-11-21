@@ -149,6 +149,10 @@ void UYJJAutoPilot::StartAutoPlay()
 	{
 		AddUpgradeTests();
 	}
+	if (Wants(TEXT("spells")) && YJJMap::Path().Num() > 0)
+	{
+		AddSpellTest();
+	}
 	if (Wants(TEXT("stress")))
 	{
 		AddStressTest();
@@ -428,6 +432,79 @@ void UYJJAutoPilot::AddStressTest()
 		Check(Fps > StressMinFps, FString::Printf(TEXT("%d wobblers at once: %.0f fps (%d alive)"), Spawned, Fps, Game->GetEnemies().Num()));
 		Shot(TEXT("Play_15_Crowd"));
 	});
+}
+
+void UYJJAutoPilot::AddSpellTest()
+{
+	UYJJGame* Game = UYJJGame::Get(GetWorld());
+	// 바위: 졸병 무리가 걸어오는 앞에 떨어뜨린다
+	const FVector BoulderAt = YJJMap::PointAt(SpellBoulderAt);
+	Add(SetupWait, [this, Game, BoulderAt] {
+		Game->DebugReset(TestGold, true);
+		View(BoulderAt, SpellViewYaw, SpellViewPitch, SpellViewDistance);
+		Spawn(EYJJWobblerKind::Grunt, SpellSquad);
+		SpellKills = Game->GetKills();
+		SpellLimpMax = 0;
+	});
+	Add(SpellWalkWait, [this, Game, BoulderAt] { Check(Game->CastSpell(EYJJSpell::Boulder, BoulderAt), TEXT("boulder cast")); });
+	for (int32 i = 0; i < SpellSamples; ++i)
+	{
+		Add(SpellSampleGap, [this, Game, i] {
+			int32 Limp = 0;
+			for (const AYJJWobbler* Enemy : Game->GetEnemies())
+			{
+				Limp += (Enemy && Enemy->IsLimp()) ? 1 : 0;
+			}
+			SpellLimpMax = FMath::Max(SpellLimpMax, Limp);
+			if (i == SpellShotSample)
+			{
+				Shot(TEXT("Play_40_Boulder"));
+			}
+		});
+	}
+	Add(ShortWait, [this, Game] {
+		const int32 Downs = Game->GetKills() - SpellKills;
+		Check(SpellLimpMax + Downs >= SpellMinHits, FString::Printf(TEXT("boulder knocked %d of %d (limp at once %d, down %d)"), SpellLimpMax + Downs, SpellSquad, SpellLimpMax, Downs));
+		Check(!Game->CanCast(EYJJSpell::Boulder) && Game->GetSpellCharge(EYJJSpell::Boulder) < 1.f, TEXT("boulder is on cooldown after use"));
+	});
+
+	// 지원군: 하늘에서 떨어져 서고, 시간이 다 되면 사라진다
+	const FVector HelpAt = YJJMap::PointAt(SpellReinforceAt);
+	Add(ShortWait, [this, Game, HelpAt] {
+		Game->DebugReset(TestGold, true);
+		View(HelpAt, SpellViewYaw, SpellViewPitch, SpellViewDistance);
+		Check(Game->CastSpell(EYJJSpell::Reinforce, HelpAt), TEXT("reinforce cast"));
+	});
+	Add(SpellLandWait, [this, Game] {
+		int32 Standing = 0;
+		for (const AYJJWobbler* Helper : Game->GetHelpers())
+		{
+			Standing += (Helper && Helper->IsStanding()) ? 1 : 0;
+		}
+		const int32 Want = FMath::RoundToInt(UYJJGame::SpellTune(EYJJSpell::Reinforce, TEXT("Count")));
+		Check(Game->GetHelpers().Num() == Want && Standing >= SpellMinStanding, FString::Printf(TEXT("reinforcements landed (%d of %d, %d standing)"), Game->GetHelpers().Num(), Want, Standing));
+		Shot(TEXT("Play_41_Reinforce"));
+	});
+	Add(UYJJGame::SpellTune(EYJJSpell::Reinforce, TEXT("Life")) - SpellLandWait + SpellExpireExtra, [this, Game] {
+		Check(Game->GetHelpers().Num() == 0, FString::Printf(TEXT("reinforcements went home (%d left)"), Game->GetHelpers().Num()));
+	});
+
+	// 일찍 부르기: 1웨이브가 다 나온 뒤 다음 웨이브를 부르면 남은 시간만큼 골드
+	Add(ShortWait, [this, Game] {
+		Game->DebugReset(TestGold, true);
+		ViewOverview();
+		Game->StartWave();
+	});
+	Add(UYJJGame::WaveDef(1).Duration + SpellCallExtra, [this, Game] {
+		const bool bCan = Game->CanCallWave();
+		const int32 Bonus = Game->GetEarlyBonus();
+		const int32 Before = Game->GetGold();
+		Game->StartWave();
+		Check(bCan && Bonus > 0 && Game->GetWave() == 2 && Game->GetGold() == Before + Bonus,
+			FString::Printf(TEXT("call wave 2 early (can %d, bonus %d, wave %d, gold %d -> %d)"), bCan ? 1 : 0, Bonus, Game->GetWave(), Before, Game->GetGold()));
+		Shot(TEXT("Play_42_CallEarly"));
+	});
+	Add(ShortWait, [this, Game] { Game->DebugReset(TestGold, true); });
 }
 
 void UYJJAutoPilot::AddWaveTest()
